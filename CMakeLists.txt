@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(OOP_AI_Agents_2026 VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -39,6 +39,7 @@ target_link_libraries(agent_app PRIVATE
     CURL::libcurl
     nlohmann_json::nlohmann_json
     SQLite::SQLite3
+    gdi32
 )
 
 # Executable 2: Benchmark Evaluation Runner
@@ -48,13 +49,14 @@ target_link_libraries(run_eval PRIVATE
     CURL::libcurl
     nlohmann_json::nlohmann_json
     SQLite::SQLite3
+    gdi32
 )
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_libraries(agent_app PRIVATE stdc++exp)
     target_link_libraries(run_eval PRIVATE stdc++exp)
-    target_compile_options(agent_app PRIVATE -Wall -Wextra -Wpedantic -std=c++23)
-    target_compile_options(run_eval PRIVATE -Wall -Wextra -Wpedantic -std=c++23)
+    target_compile_options(agent_app PRIVATE -Wall -Wextra -Wpedantic -std=c++26)
+    target_compile_options(run_eval PRIVATE -Wall -Wextra -Wpedantic -std=c++26)
 elseif(MSVC)
     target_compile_options(agent_app PRIVATE /W4 /std:c++latest)
     target_compile_options(run_eval PRIVATE /W4 /std:c++latest)
