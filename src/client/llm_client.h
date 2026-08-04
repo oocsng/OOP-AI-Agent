@@ -8,9 +8,17 @@
 
 namespace agent {
 
+#include <cstdlib>
+
 struct LLMConfig {
-  std::string base_url{"http://localhost:11434"};
-  std::string model_name{"qwen2.5:7b"};
+  std::string base_url{[] {
+    const char* env_url = std::getenv("OLLAMA_BASE_URL");
+    return (env_url && env_url[0] != '\0') ? std::string(env_url) : "http://localhost:11434";
+  }()};
+  std::string model_name{[] {
+    const char* env_model = std::getenv("OLLAMA_MODEL");
+    return (env_model && env_model[0] != '\0') ? std::string(env_model) : "qwen2.5:7b";
+  }()};
   double temperature{0.2};
   int max_tokens{2048};
   int timeout_seconds{60};
