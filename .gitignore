@@ -1,0 +1,18 @@
+# AI-related files
+AGENTS.md
+AI_Agent_Coding_Tasks.md
+GEMINI.md
+promptAI.py
+.codegraph/
+
+# Build artifacts
+build/
+cmake_out.txt
+cmakelog.txt
+out.txt
+out_simple.txt
+sys_report.txt
+browser_result.txt
+*.db
+*.bmp
+*.bin

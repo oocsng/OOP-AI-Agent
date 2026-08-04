@@ -23,6 +23,7 @@ find_package(SQLite3 REQUIRED)
 
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Core framework library sources
 file(GLOB_RECURSE CORE_SOURCES
