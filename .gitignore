@@ -1,9 +1,4 @@
-# AI-related files
-AGENTS.md
-AI_Agent_Coding_Tasks.md
-GEMINI.md
-promptAI.py
-.codegraph/
+
 
 # Build artifacts
 build/
