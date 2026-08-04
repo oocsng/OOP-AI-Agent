@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include "utils/time_utils.hpp"
 
 namespace agent {
 
@@ -69,6 +70,7 @@ std::string WriteFileTool::execute(const nlohmann::json& args) {
     }
 
     file << content_str;
+    file << "\n--- " << utils::get_iso8601_timestamp() << " ---\n";
     return "Successfully wrote content to file: " + file_path.string();
 }
 
