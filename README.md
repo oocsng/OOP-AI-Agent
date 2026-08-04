@@ -4,7 +4,7 @@ Dự án Xây dựng Framework ReAct AI Agent bằng C++26 tích hợp với Oll
 
 ---
 
-## ⚙️ 1. HƯỚNG DẪN CÀI ĐẶT OLLAMA & CẤU HÌNH MÔ HÌNH (OLLAMA SETUP GUIDE)
+## 1. HƯỚNG DẪN CÀI ĐẶT OLLAMA & CẤU HÌNH MÔ HÌNH (OLLAMA SETUP GUIDE)
 
 Để dự án hoạt động chính xác trên máy mới, cần cài đặt dịch vụ **Ollama** và tải mô hình AI `qwen2.5:7b`.
 
@@ -34,7 +34,7 @@ Nếu trả về danh sách JSON chứa `"name": "qwen2.5:7b"`, Ollama đã sẵ
 
 ---
 
-### 🌐 CẤU HÌNH OLLAMA TỪ XA (REMOTE AI ON GOOGLE COLAB / CLOUD GPU)
+### CẤU HÌNH OLLAMA TỪ XA (REMOTE AI ON GOOGLE COLAB / CLOUD GPU)
 
 Nếu máy tính cá nhân không đủ GPU/RAM để chạy mô hình `qwen2.5:7b` tại máy cục bộ (localhost), bạn có thể chạy Ollama miễn phí trên **Google Colab (T4 GPU)** và kết nối dự án C++ tới Colab:
 
@@ -73,7 +73,7 @@ Thay vì sửa code C++, bạn có thể cấu hình URL từ xa qua 2 cách:
 
 ---
 
-## 📋 2. YÊU CẦU MÔI TRƯỜNG & THƯ VIỆN BÊN THỨ BA (REQUIREMENTS)
+## 2. YÊU CẦU MÔI TRƯỜNG & THƯ VIỆN BÊN THỨ BA (REQUIREMENTS)
 
 * **Hệ điều hành**: Windows 10/11 (Hỗ trợ Win32 API), Linux, macOS
 * **Trình biên dịch**: GCC 15+ (MSYS2 UCRT64 hỗ trợ `-std=c++26`) / MSVC / Clang
@@ -85,7 +85,7 @@ Thay vì sửa code C++, bạn có thể cấu hình URL từ xa qua 2 cách:
 
 ---
 
-### 🛠️ 3. HƯỚNG DẪN BIÊN DỊCH BẰNG LỆNH THỦ CÔNG (MANUAL STEP-BY-STEP BUILD)
+### 3. HƯỚNG DẪN BIÊN DỊCH BẰNG LỆNH THỦ CÔNG (MANUAL STEP-BY-STEP BUILD)
 
 > [!NOTE]
 > **Lưu ý quan trọng khi chạy thủ công**: Trong môi trường MSYS2 UCRT64, thư mục `C:\msys64\ucrt64\bin` có chứa một file `cmake.exe` của MSYS2 (yêu cầu môi trường POSIX shell). Khi thêm `C:\msys64\ucrt64\bin` vào đầu `$env:PATH`, lệnh `cmake` mặc định có thể bị gọi nhầm vào `cmake.exe` của MSYS2 gây lỗi không thực thi trong PowerShell thông thường.
@@ -113,7 +113,7 @@ $env:PATH = "C:\msys64\ucrt64\bin;" + $env:PATH
 ctest --test-dir build --output-on-failure
 ```
 
-### 🚀 Cách nhanh nhất & An toàn nhất (Khuyên dùng):
+### Cách nhanh nhất & An toàn nhất (Khuyên dùng):
 Chạy script tự động đã xử lý sẵn xung đột đường dẫn:
 ```powershell
 .\build.ps1
@@ -121,7 +121,7 @@ Chạy script tự động đã xử lý sẵn xung đột đường dẫn:
 
 ---
 
-## 🧪 4. HƯỚNG DẪN KIỂM THỬ VÀ XÁC NHẬN TOÀN BỘ DỰ ÁN (TESTING GUIDE)
+## 4. HƯỚNG DẪN KIỂM THỬ VÀ XÁC NHẬN TOÀN BỘ DỰ ÁN (TESTING GUIDE)
 
 ### 4.1. Chạy Tự động 9 Unit Tests (CTest Suite)
 
@@ -157,15 +157,15 @@ Chạy từng unit test riêng lẻ nếu cần:
 
 ### 4.2. Chạy Bộ Đánh Giá Benchmark (`run_eval.exe`)
 
-Đánh giá tự động trên 12 nhiệm vụ benchmark (`benchmark/tasks.json`):
+Đánh giá tự động trên 14 nhiệm vụ benchmark (`benchmark/tasks.json`):
 
 ```powershell
 cmd /c "set PATH=C:\msys64\ucrt64\bin;%PATH% && build\run_eval.exe --enable-gui"
 ```
 
 **Kết quả xác nhận**:
-* **Success Rate**: 100.00% (12/12 tasks passed).
-* **Trajectory Output**: Xuất 12 file nhật ký JSON tại `trajectories/trajectory_*.json`.
+* **Success Rate**: 100.00% (14/14 tasks passed).
+* **Trajectory Output**: Xuất 14 file nhật ký JSON tại `trajectories/trajectory_*.json`.
 
 ---
 
@@ -196,7 +196,7 @@ cmd /c "set PATH=C:\msys64\ucrt64\bin;%PATH% && build\agent_app.exe"
 
 ---
 
-## 🗂️ 5. CẤU TRÚC THƯ MỤC DỰ ÁN (DIRECTORY STRUCTURE)
+## 5. CẤU TRÚC THƯ MỤC DỰ ÁN (DIRECTORY STRUCTURE)
 
 ```text
 OOP AI Agents 2026/
