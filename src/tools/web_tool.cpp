@@ -42,28 +42,29 @@ std::string WebSearchTool::execute(const nlohmann::json& args) {
         return "Error: Missing string argument 'query'.";
     }
 
-    CURL* curl = curl_easy_init();
-    if (!curl) {
+    CURL* raw_curl = curl_easy_init();
+    if (!raw_curl) {
         return "Error: Failed to initialize libcurl for web search.";
     }
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl(raw_curl, curl_easy_cleanup);
 
-    char* encoded_query = curl_easy_escape(curl, query.c_str(), static_cast<int>(query.length()));
-    std::string postfields = "q=" + std::string(encoded_query);
-    curl_free(encoded_query);
+    std::unique_ptr<char, decltype(&curl_free)> encoded_query(
+        curl_easy_escape(curl.get(), query.c_str(), static_cast<int>(query.length())), curl_free);
+        
+    std::string postfields = "q=" + std::string(encoded_query.get());
 
     std::string response;
-    curl_easy_setopt(curl, CURLOPT_URL, "https://html.duckduckgo.com/html/");
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postfields.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, web_curl_write);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl.get(), CURLOPT_URL, "https://html.duckduckgo.com/html/");
+    curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, postfields.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, web_curl_write);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl.get(), CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, 15L);
+    curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl.get(), CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl.get(), CURLOPT_SSL_VERIFYHOST, 0L);
 
-    CURLcode res = curl_easy_perform(curl);
-    curl_easy_cleanup(curl);
+    CURLcode res = curl_easy_perform(curl.get());
 
     if (res != CURLE_OK) {
         return "Error: Web search HTTP request failed: " + std::string(curl_easy_strerror(res));

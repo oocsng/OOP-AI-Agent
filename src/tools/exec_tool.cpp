@@ -15,23 +15,28 @@ std::string ExecTool::execute(const nlohmann::json& args) {
     std::array<char, 256> buffer;
 
 #if defined(_WIN32)
-    FILE* pipe = _popen(command.c_str(), "r");
+    std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(command.c_str(), "r"), _pclose);
 #else
-    FILE* pipe = popen(command.c_str(), "r");
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
 #endif
 
     if (!pipe) {
         return "Error: Failed to open process pipe for command execution.";
     }
 
-    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
-        result += buffer.data();
+    try {
+        while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
+            result += buffer.data();
+        }
+    } catch (...) {
+        return "Error: Exception occurred while reading command output.";
     }
 
+    int exit_code = -1;
 #if defined(_WIN32)
-    int exit_code = _pclose(pipe);
+    exit_code = _pclose(pipe.release());
 #else
-    int exit_code = pclose(pipe);
+    exit_code = pclose(pipe.release());
 #endif
 
     if (result.empty()) {

@@ -140,7 +140,13 @@ std::string CalculatorTool::execute(const nlohmann::json& args) {
     try {
         ExprParser parser(expr);
         double result = parser.evaluate();
-        if (std::floor(result) == result && !std::isinf(result) && std::abs(result) < 1e15) {
+        if (std::isnan(result)) {
+            throw std::runtime_error("Result is NaN");
+        }
+        if (std::isinf(result)) {
+            throw std::runtime_error("Result is Infinity");
+        }
+        if (std::floor(result) == result && std::abs(result) < 1e15) {
             return std::to_string(static_cast<long long>(result));
         } else {
             std::ostringstream ss;
