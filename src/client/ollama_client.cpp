@@ -57,13 +57,14 @@ std::string OllamaClient::encode_file_base64(const std::string& file_path) {
 }
 
 LLMResponse OllamaClient::chat(const std::vector<Message>& history, const LLMConfig& config) {
-    CURL* curl = curl_easy_init();
-    if (!curl) {
+    CURL* raw_curl = curl_easy_init();
+    if (!raw_curl) {
         throw ConnectionException("Failed to initialize libcurl instance.");
     }
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl(raw_curl, curl_easy_cleanup);
 
     nlohmann::json payload;
-    payload["model"] = config.model_name;
+    payload["model"] = config.model_name.empty() ? "qwen2.5:7b" : config.model_name;
     payload["stream"] = false;
     payload["options"] = {
         {"temperature", config.temperature},
@@ -85,7 +86,7 @@ LLMResponse OllamaClient::chat(const std::vector<Message>& history, const LLMCon
     std::string request_body = payload.dump();
     std::string response_body;
 
-    std::string endpoint = config.base_url;
+    std::string endpoint = config.base_url.empty() ? "http://localhost:11434" : config.base_url;
     if (endpoint.back() == '/') {
         endpoint.pop_back();
     }
@@ -93,28 +94,29 @@ LLMResponse OllamaClient::chat(const std::vector<Message>& history, const LLMCon
         endpoint += "/api/chat";
     }
 
-    struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
+    struct curl_slist* raw_headers = nullptr;
+    raw_headers = curl_slist_append(raw_headers, "Content-Type: application/json");
+    std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> headers(raw_headers, curl_slist_free_all);
 
-    curl_easy_setopt(curl, CURLOPT_URL, endpoint.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_body.c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, static_cast<long>(config.timeout_seconds));
+    curl_easy_setopt(curl.get(), CURLOPT_URL, endpoint.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, request_body.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, curl_write_callback);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &response_body);
+    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, static_cast<long>(config.timeout_seconds));
 
-    CURLcode res = curl_easy_perform(curl);
+    CURLcode res = curl_easy_perform(curl.get());
     long http_code = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
+    curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
 
     if (res != CURLE_OK) {
-        throw ConnectionException(curl_easy_strerror(res));
+        throw ConnectionException(std::string("Ollama server is offline or unreachable. Please start Ollama locally via 'ollama serve' or check network. Details: ") + curl_easy_strerror(res));
     }
 
     if (http_code != 200) {
+        if (http_code == 404) {
+            throw HTTPException(static_cast<int>(http_code), "Model not found. Please ensure the required model is pulled via 'ollama pull <model_name>'. Details: " + response_body);
+        }
         throw HTTPException(static_cast<int>(http_code), response_body);
     }
 
@@ -130,6 +132,10 @@ LLMResponse OllamaClient::chat(const std::vector<Message>& history, const LLMCon
             response.content = resp_json["choices"][0]["message"]["content"].get<std::string>();
         } else {
             throw JSONParseException("Missing message.content field in JSON response.");
+        }
+
+        if (response.content.empty()) {
+            throw JSONParseException("LLM returned an empty string content.");
         }
 
         int total_tokens = 0;
