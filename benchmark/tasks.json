@@ -1,0 +1,100 @@
+[
+  {
+    "task_id": "task-sim-01",
+    "prompt": "Calculate the result of expression (15 + 25) * 4.",
+    "expected_keywords": ["calculator", "160"],
+    "test_command": "echo Task Simple 1 Verified",
+    "category": "simple"
+  },
+  {
+    "task_id": "task-sim-02",
+    "prompt": "Write 'Hello AI Agent Framework 2026' into file 'out_simple.txt'.",
+    "expected_keywords": ["write_file", "out_simple.txt"],
+    "test_command": "echo Task Simple 2 Verified",
+    "category": "simple"
+  },
+  {
+    "task_id": "task-sim-03",
+    "prompt": "Get current system time and timezone.",
+    "expected_keywords": ["get_system_time", "timestamp"],
+    "test_command": "echo Task Simple 3 Verified",
+    "category": "simple"
+  },
+  {
+    "task_id": "task-sim-04",
+    "prompt": "Call the tool 'system_info_tool' to check host system hardware CPU and RAM specifications (do not use exec).",
+    "expected_keywords": ["system_info_tool", "cpu_threads"],
+    "test_command": "echo Task Simple 4 Verified",
+    "category": "simple"
+  },
+  {
+    "task_id": "task-med-01",
+    "prompt": "Calculate (100 - 35) / 5 and save the result into memory with key 'calc_5'.",
+    "expected_keywords": ["calculator", "13", "memory_save"],
+    "test_command": "echo Task Medium 1 Verified",
+    "category": "medium"
+  },
+  {
+    "task_id": "task-med-02",
+    "prompt": "Search web for 'C++23 std::println' and save search summary to 'cpp23_info.txt'.",
+    "expected_keywords": ["web_search", "write_file", "cpp23_info.txt"],
+    "test_command": "echo Task Medium 2 Verified",
+    "category": "medium"
+  },
+  {
+    "task_id": "task-med-03",
+    "prompt": "Read file 'version.txt' and extract date pattern YYYY-MM-DD using regex tool.",
+    "expected_keywords": ["read_file", "regex_extractor_tool"],
+    "test_command": "echo Task Medium 3 Verified",
+    "category": "medium"
+  },
+  {
+    "task_id": "task-med-04",
+    "prompt": "Save user preference 'theme=dark' in persistent memory and then query it back using memory_search.",
+    "expected_keywords": ["memory_save", "memory_search", "theme"],
+    "test_command": "echo Task Medium 4 Verified",
+    "category": "medium"
+  },
+  {
+    "task_id": "task-hard-01",
+    "prompt": "Try reading non-existent file 'non_existent.txt'. Upon error, recover by calculating 2^10 and saving result into memory key 'fallback_val'.",
+    "expected_keywords": ["read_file", "calculator", "1024", "memory_save"],
+    "test_command": "echo Task Hard 1 Verified",
+    "category": "hard"
+  },
+  {
+    "task_id": "task-hard-02",
+    "prompt": "Call the tool 'system_info_tool' directly to fetch system specs (do not use exec), extract memory numbers via regex_extractor_tool, calculate total RAM in GB, and save summary into file 'sys_report.txt'.",
+    "expected_keywords": ["system_info_tool", "regex_extractor_tool", "calculator", "write_file"],
+    "test_command": "echo Task Hard 2 Verified",
+    "category": "hard"
+  },
+  {
+    "task_id": "task_bonus_vector",
+    "prompt": "Save memory 'Apple is a fruit', then vector search for 'fruit'.",
+    "expected_keywords": ["vector_memory", "save", "search"],
+    "test_command": "echo Bonus Vector Passed",
+    "category": "bonus"
+  },
+  {
+    "task_id": "task_bonus_multi_agent",
+    "prompt": "Spawn a sub-agent named worker1 and send it a message.",
+    "expected_keywords": ["sub_agent", "spawn", "worker1"],
+    "test_command": "echo Bonus Multi-Agent Passed",
+    "category": "bonus"
+  },
+  {
+    "task_id": "task_bonus_gui",
+    "prompt": "Take a screenshot of the desktop, then click at coordinates 10,10 to safely test GUI actions.",
+    "expected_keywords": ["gui_tool", "screenshot", "click"],
+    "test_command": "echo Bonus GUI Passed",
+    "category": "bonus"
+  },
+  {
+    "task_id": "task_demo_browser",
+    "prompt": "The browser is already open to Google (https://www.google.com). Use gui_tool to type 'C++26 features' into the search bar, press Enter with action='key' (key: 'enter'), wait 3000ms with action='sleep', copy/extract the search result, and save it into browser_result.txt using write_file.",
+    "expected_keywords": ["gui_tool", "browser_result.txt"],
+    "test_command": "echo Browser Automation Demo Task Passed",
+    "category": "bonus"
+  }
+]
