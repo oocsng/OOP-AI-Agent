@@ -5,6 +5,8 @@
 #include <memory>
 #include <filesystem>
 #include <nlohmann/json.hpp>
+#include <thread>
+#include <chrono>
 #include "utils/time_utils.hpp"
 
 #include "dto/trajectory.h"
@@ -61,6 +63,14 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    if (config.base_url.empty() && std::getenv("LLM_BASE_URL")) config.base_url = std::getenv("LLM_BASE_URL");
+    if (config.model_name.empty() && std::getenv("LLM_MODEL")) config.model_name = std::getenv("LLM_MODEL");
+
+    if (config.base_url.empty() || config.model_name.empty()) {
+        std::cerr << "Error: LLM_BASE_URL and LLM_MODEL environment variables or CLI flags must be set.\n";
+        return 1;
+    }
+
     std::println("Using LLM Base URL : {}", config.base_url);
     std::println("Using LLM Model    : {}", config.model_name);
 
@@ -84,7 +94,7 @@ int main(int argc, char* argv[]) {
         spec.test_command = item.value("test_command", "");
         spec.category = item.value("category", "general");
         
-        if ((spec.task_id == "task_bonus_gui" || spec.task_id == "task_demo_browser") && !enable_gui) {
+        if (spec.task_id == "task_bonus_gui" && !enable_gui) {
             std::println("Skipping GUI task [{}] because --enable-gui was not provided.", spec.task_id);
             continue;
         }
@@ -132,6 +142,7 @@ int main(int argc, char* argv[]) {
 
     for (const auto& task : tasks) {
         std::println("\n[{}] Running Task [{}] (Category: {}): {}", agent::utils::get_local_timestamp(), task.task_id, task.category, task.prompt);
+        
         auto summary = runner.run_task(task, config);
 
         total_tokens += summary.trajectory.total_tokens;

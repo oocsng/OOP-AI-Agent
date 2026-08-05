@@ -89,12 +89,5 @@
     "expected_keywords": ["gui_tool", "screenshot", "click"],
     "test_command": "echo Bonus GUI Passed",
     "category": "bonus"
-  },
-  {
-    "task_id": "task_demo_browser",
-    "prompt": "The browser is already open to Google (https://www.google.com). Use gui_tool to type 'C++26 features' into the search bar, press Enter with action='key' (key: 'enter'), wait 3000ms with action='sleep', copy/extract the search result, and save it into browser_result.txt using write_file.",
-    "expected_keywords": ["gui_tool", "browser_result.txt"],
-    "test_command": "echo Browser Automation Demo Task Passed",
-    "category": "bonus"
   }
 ]
