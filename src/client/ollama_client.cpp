@@ -64,8 +64,7 @@ LLMResponse OllamaClient::chat(const std::vector<Message>& history, const LLMCon
     std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl(raw_curl, curl_easy_cleanup);
 
     nlohmann::json payload;
-    if (config.model_name.empty()) throw ConnectionException("LLM model name is not configured.");
-    payload["model"] = config.model_name;
+    payload["model"] = config.model_name.empty() ? "qwen2.5:7b" : config.model_name;
     payload["stream"] = false;
     payload["options"] = {
         {"temperature", config.temperature},
@@ -87,8 +86,7 @@ LLMResponse OllamaClient::chat(const std::vector<Message>& history, const LLMCon
     std::string request_body = payload.dump();
     std::string response_body;
 
-    if (config.base_url.empty()) throw ConnectionException("LLM base URL is not configured.");
-    std::string endpoint = config.base_url;
+    std::string endpoint = config.base_url.empty() ? "http://localhost:11434" : config.base_url;
     if (endpoint.back() == '/') {
         endpoint.pop_back();
     }
@@ -112,12 +110,12 @@ LLMResponse OllamaClient::chat(const std::vector<Message>& history, const LLMCon
     curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
 
     if (res != CURLE_OK) {
-        throw ConnectionException(std::string("LLM server is offline or unreachable. Details: ") + curl_easy_strerror(res));
+        throw ConnectionException(std::string("Ollama server is offline or unreachable. Please start Ollama locally via 'ollama serve' or check network. Details: ") + curl_easy_strerror(res));
     }
 
     if (http_code != 200) {
         if (http_code == 404) {
-            throw HTTPException(static_cast<int>(http_code), "Model not found on remote server. Details: " + response_body);
+            throw HTTPException(static_cast<int>(http_code), "Model not found. Please ensure the required model is pulled via 'ollama pull <model_name>'. Details: " + response_body);
         }
         throw HTTPException(static_cast<int>(http_code), response_body);
     }

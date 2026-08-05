@@ -108,7 +108,7 @@ Write-Host "[INFO] Configuring project..." -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "Configuration failed with exit code $LASTEXITCODE" }
 
 Write-Host "[INFO] Building project (limited parallel jobs to prevent Out-Of-Memory)..." -ForegroundColor Cyan
-& $Cmake --build build --config Release --parallel 4
+& $Cmake --build build --config Release --parallel 2
 if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
 
 Write-Host "[OK] Build completed successfully." -ForegroundColor Green
@@ -154,7 +154,7 @@ Write-Host "[INFO] Configuring project with Ninja..." -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "Configuration failed with exit code $LASTEXITCODE" }
 
 Write-Host "[INFO] Building project with Ninja (limited parallel jobs to prevent Out-Of-Memory)..." -ForegroundColor Cyan
-& $Cmake --build build --config Release --parallel 4
+& $Cmake --build build --config Release --parallel 2
 if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
 
 Write-Host "[OK] Build completed successfully." -ForegroundColor Green
@@ -199,10 +199,8 @@ Hệ thống sẽ chạy qua các Unit Test (Ollama Client, Tools, ReAct Loop, v
 > *(Hoặc `.\build\Release\test_bonus_features.exe` tùy vào trình biên dịch).*
 
 ### 4.2. Chạy Đánh Giá Benchmark (`run_eval`)
-Chạy bộ tự động giải quyết 13 nhiệm vụ thực tế đa dạng (Simple, Medium, Hard, Bonus):
+Chạy bộ tự động giải quyết 14 nhiệm vụ thực tế đa dạng (Simple, Medium, Hard, Bonus):
 ```powershell
-$env:LLM_BASE_URL="http://localhost:11434"
-$env:LLM_MODEL="qwen2.5:7b"
 .\build\run_eval.exe --enable-gui
 ```
 Kết quả hành vi của Agent (Thoughts, Actions, Latency) sẽ được xuất dưới dạng tệp JSON tại thư mục `trajectories/`.
@@ -210,16 +208,12 @@ Kết quả hành vi của Agent (Thoughts, Actions, Latency) sẽ được xu�
 ### 4.3. Chạy AI Browser Automation Demo
 Trình diễn khả năng Agent tương tác trực tiếp với giao diện Windows (GUI) để tự động hóa tìm kiếm trên web:
 ```powershell
-$env:LLM_BASE_URL="http://localhost:11434"
-$env:LLM_MODEL="qwen2.5:7b"
 .\build\run_browser_demo.exe
 ```
 
 ### 4.4. Chạy Ứng Dụng CLI Trực Tiếp
 Để tương tác trò chuyện trực tiếp với AI Agent:
 ```powershell
-$env:LLM_BASE_URL="http://localhost:11434"
-$env:LLM_MODEL="qwen2.5:7b"
 .\build\agent_app.exe
 ```
 

@@ -33,14 +33,7 @@ std::string ReadFileTool::execute(const nlohmann::json& args) {
 
         std::stringstream buffer;
         buffer << file.rdbuf();
-        std::string content = buffer.str();
-        
-        // Prevent binary files from crashing JSON serialization
-        if (content.find('\0') != std::string::npos) {
-            return "Error: File appears to be binary. The read_file tool can only read text files.";
-        }
-        
-        return content;
+        return buffer.str();
     } catch (const std::exception& e) {
         return "Error reading file: " + std::string(e.what());
     }

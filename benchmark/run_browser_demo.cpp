@@ -101,13 +101,7 @@ int main() {
     });
 
     LLMConfig config;
-    if (const char* base_url = std::getenv("LLM_BASE_URL")) config.base_url = base_url;
-    if (const char* model = std::getenv("LLM_MODEL")) config.model_name = model;
-
-    if (config.base_url.empty() || config.model_name.empty()) {
-        std::cerr << "[ERROR] LLM_BASE_URL and LLM_MODEL environment variables must be set.\n";
-        return 1;
-    }
+    config.model_name = "qwen2.5:7b";
     config.timeout_seconds = 10;
 
     Trajectory traj;
