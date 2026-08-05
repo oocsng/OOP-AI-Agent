@@ -1,197 +1,220 @@
-# OOP AI AGENT FRAMEWORK WITH OLLAMA API IN C++ (2026)
+# OOP AI AGENT FRAMEWORK WITH OLLAMA API IN C++
 
-Dự án Xây dựng Framework ReAct AI Agent bằng C++26 tích hợp với Ollama API (`qwen2.5:7b`), SQLite3 Persistent Vector Memory, Win32 GUI Agent Automation và Đa luồng Multi-Agent Coordination.
+Dự án Xây dựng Framework ReAct AI Agent bằng C++26, tích hợp với Ollama API (`qwen2.5:7b`), SQLite3 Persistent Vector Memory, Win32 GUI Agent Automation và Đa luồng Multi-Agent Coordination.
 
 ---
 
-## 1. HƯỚNG DẪN CÀI ĐẶT OLLAMA & CẤU HÌNH MÔ HÌNH (OLLAMA SETUP GUIDE)
+## 1. YÊU CẦU HỆ THỐNG & CÔNG CỤ (PREREQUISITES)
 
-Để dự án hoạt động chính xác trên máy mới, cần cài đặt dịch vụ **Ollama** và tải mô hình AI `qwen2.5:7b`.
+Để biên dịch và chạy dự án này trên một máy tính hoàn toàn mới, bạn cần cài đặt các công cụ sau:
 
-### Bước 1: Tải và cài đặt Ollama
-* Tải bản cài đặt cho Windows/Linux/macOS từ trang chủ: [https://ollama.com](https://ollama.com)
-* Cài đặt Ollama và khởi chạy dịch vụ (Ollama Service sẽ tự động chạy tại giao thức HTTP endpoint `http://localhost:11434`).
+* **Hệ điều hành**: Windows 10/11 (Do có sử dụng Win32 API cho GUI Automation), Linux, hoặc macOS.
+* **C++ Compiler (GCC 15+)**: 
+  * Cài đặt [MSYS2](https://www.msys2.org/).
+  * Mở MSYS2 UCRT64 terminal và chạy: `pacman -S mingw-w64-ucrt-x86_64-gcc`
+* **Native CMake**:
+  * Tải bản cài đặt từ [cmake.org](https://cmake.org/download/) hoặc cài đặt qua Python: `pip install cmake` hoặc qua Winget: `winget install Kitware.CMake`.
+  * *Lưu ý quan trọng:* KHÔNG sử dụng `cmake` mặc định của MSYS2 vì sẽ gây lỗi sinh file Makefile. Hãy đảm bảo CMake bản native của Windows được thêm vào biến môi trường `PATH`.
+* **Thư viện phụ thuộc** (có thể cài qua MSYS2 UCRT64):
+  * `pacman -S mingw-w64-ucrt-x86_64-curl`
+  * `pacman -S mingw-w64-ucrt-x86_64-sqlite3`
+  * `pacman -S mingw-w64-ucrt-x86_64-nlohmann-json`
 
-### Bước 2: Tải mô hình LLM chính (`qwen2.5:7b`)
+---
+
+## 2. CÀI ĐẶT OLLAMA HOẶC REMOTE AI BACKEND (LLM SETUP)
+
+Dự án này hỗ trợ cả mô hình chạy cục bộ (Ollama) và các dịch vụ Remote AI/LLM Servers (như Google Colab, NVIDIA NIM, OpenRouter, Gemini API).
+
+### 2.1. Cấu hình Ollama Cục Bộ (Local)
+* Tải và cài đặt tại trang chủ: [https://ollama.com](https://ollama.com)
+* Dịch vụ Ollama sẽ tự động chạy tại HTTP endpoint `http://localhost:11434`.
+
+### 2.2. Cấu hình Remote AI Backend (Thay thế Ollama Local)
+Nếu không chạy được Ollama trên máy cá nhân, bạn có thể kết nối Agent với các máy chủ AI từ xa:
+- **Ngrok / Localtunnel (Kaggle/Colab)**: Chạy mô hình (ví dụ `gemma-2-9b-it`) trên đám mây và mở port bằng Ngrok.
+- **NVIDIA NIM / OpenRouter / Gemini**: Cấu hình Base URL tương ứng.
+- **Cách thiết lập**: Thay đổi Base URL và Model Name trong mã nguồn khi khởi tạo Client hoặc qua biến môi trường.
+  *Ví dụ C++:*
+  ```cpp
+  // Chạy qua endpoint của Colab Ngrok thay vì localhost
+  OllamaClient client("https://your-ngrok-url.ngrok-free.app", "gemma2");
+  ```
+  *(Lưu ý: Nếu sử dụng API Key cho OpenRouter/Gemini, hãy thêm Header `Authorization: Bearer <KEY>` vào HTTP request của `OllamaClient`).*
+
+### Bước 2: Tải mô hình LLM & Vector Embedding (Dành cho Local)
 Mở PowerShell / Command Prompt và chạy lệnh:
 ```powershell
-ollama pull qwen2.5:7b
+ollama pull qwen2.5:7b        # Mô hình suy luận chính (ReAct Agent)
+ollama pull nomic-embed-text  # Mô hình nhúng (Vector Memory Embeddings)
 ```
-*(Nếu muốn chạy thử nghiệm nhẹ hơn, có thể dùng `ollama pull qwen2.5:3b` hoặc `ollama pull qwen2.5:1.5b`)*.
+*(Nếu RAM/VRAM yếu, có thể thay thế bằng `qwen2.5:3b` hoặc `qwen2.5:1.5b`)*.
 
-### Bước 3: (Tùy chọn) Tải mô hình Multimodal VLM cho GUI Agent
-Để chạy các tác vụ GUI Agent chụp màn hình phân tích hình ảnh:
-```powershell
-ollama pull nomic-embed-text    # Dùng cho Vector Memory Embeddings
-```
-
-### Bước 4: Kiểm tra kết nối Ollama API
-Chạy lệnh kiểm tra Ollama service đã hoạt động:
+### Bước 3: Kiểm tra kết nối
 ```powershell
 curl http://localhost:11434/api/tags
 ```
-Nếu trả về danh sách JSON chứa `"name": "qwen2.5:7b"`, Ollama đã sẵn sàng!
+*(Nếu JSON trả về có tên mô hình bạn vừa tải, hệ thống AI đã sẵn sàng).*
 
 ---
 
-### CẤU HÌNH OLLAMA TỪ XA (REMOTE AI ON GOOGLE COLAB / CLOUD GPU)
+## 3. HƯỚNG DẪN BIÊN DỊCH TỐC ĐỘ CAO (ACCELERATED BUILD)
 
-Nếu máy tính cá nhân không đủ GPU/RAM để chạy mô hình `qwen2.5:7b` tại máy cục bộ (localhost), bạn có thể chạy Ollama miễn phí trên **Google Colab (T4 GPU)** và kết nối dự án C++ tới Colab:
+Dự án hỗ trợ biên dịch song song (`--parallel`) giúp giảm đáng kể thời gian build. 
 
-#### 1. Chạy Ollama trên Google Colab Notebook:
-Tạo 1 notebook Colab mới (chọn runtime GPU T4) và chạy các ô mã sau:
+- **Cách 1 (Tiêu chuẩn)**: Sử dụng cấu hình MinGW Makefiles. (An toàn cho hệ thống ít RAM).
+- **Cách 2 (Siêu tốc - Khuyến nghị)**: Cài đặt Ninja (`pacman -S mingw-w64-ucrt-x86_64-ninja`) và biên dịch bằng Ninja để nhanh gấp 5 lần.
 
-```python
-# Ô 1: Cài đặt và khởi chạy Ollama Server trên Colab
-!curl -fsSL https://ollama.com/install.sh | sh
-import subprocess
-subprocess.Popen(["ollama", "serve"])
-
-# Ô 2: Tải mô hình Qwen2.5 7B về Colab GPU
-!ollama pull qwen2.5:7b
-
-# Ô 3: Mở cổng 11434 ra Internet bằng Ngrok (hoặc Cloudflare Tunnel)
-!pip install pyngrok
-from pyngrok import ngrok
-# Đăng ký token miễn phí tại ngrok.com nếu chưa có: ngrok.set_auth_token("YOUR_NGROK_AUTHTOKEN")
-public_url = ngrok.connect(11434)
-print(">>> REMOTE OLLAMA URL của bạn là:", public_url.public_url)
-```
-
-#### 2. Kết nối C++ AI Agent Framework tới Remote Ollama Colab:
-Thay vì sửa code C++, bạn có thể cấu hình URL từ xa qua 2 cách:
-
-* **Cách A: Thiết lập Biến môi trường (PowerShell)**:
-  ```powershell
-  $env:OLLAMA_BASE_URL = "https://xxxx.ngrok-free.app"
-  $env:OLLAMA_MODEL = "qwen2.5:7b"
-  ```
-* **Cách B: Chạy tham số CLI `--base-url`**:
-  ```powershell
-  cmd /c "set PATH=C:\msys64\ucrt64\bin;%PATH% && build\run_eval.exe --base-url=https://xxxx.ngrok-free.app --model=qwen2.5:7b --enable-gui"
-  ```
-
----
-
-## 2. YÊU CẦU MÔI TRƯỜNG & THƯ VIỆN BÊN THỨ BA (REQUIREMENTS)
-
-* **Hệ điều hành**: Windows 10/11 (Hỗ trợ Win32 API), Linux, macOS
-* **Trình biên dịch**: GCC 15+ (MSYS2 UCRT64 hỗ trợ `-std=c++26`) / MSVC / Clang
-* **Công cụ build**: CMake >= 3.21, CTest, MinGW Makefiles
-* **Thư viện phụ thuộc**:
-  * `libcurl`: Gửi HTTP POST JSON Request tới Ollama API.
-  * `nlohmann/json`: Parse & serialize JSON (payload, tool args, trajectory).
-  * `sqlite3`: CSDL bộ nhớ persistent Key-Value & Vector Storage.
-
----
-
-### 3. HƯỚNG DẪN BIÊN DỊCH BẰNG LỆNH THỦ CÔNG (MANUAL STEP-BY-STEP BUILD)
-
-> [!NOTE]
-> **Lưu ý quan trọng khi chạy thủ công**: Trong môi trường MSYS2 UCRT64, thư mục `C:\msys64\ucrt64\bin` có chứa một file `cmake.exe` của MSYS2 (yêu cầu môi trường POSIX shell). Khi thêm `C:\msys64\ucrt64\bin` vào đầu `$env:PATH`, lệnh `cmake` mặc định có thể bị gọi nhầm vào `cmake.exe` của MSYS2 gây lỗi không thực thi trong PowerShell thông thường.
-> 
-> Vì vậy, khi thực hiện từng bước thủ công trong PowerShell, cần lưu lại đường dẫn `cmake` hệ thống (Kitware/Python standalone CMake) trước khi thiết lập PATH:
+### Cách 1: Biên dịch bằng MinGW Makefiles (Tiêu chuẩn)
+Mở PowerShell tại thư mục gốc của dự án và dán toàn bộ đoạn mã sau:
 
 ```powershell
-# Bước 0: Mở PowerShell và di chuyển vào thư mục gốc dự án
-cd "D:\vsc projects\OOP AI Agents 2026"
+# Step 0: Di chuyển vào thư mục dự án (Thay đổi đường dẫn này thành thư mục chứa code của bạn)
+cd "Path\To\Project"
 
-# Bước 1: Lưu vị trí CMake hệ thống & Thêm compiler g++ UCRT64 vào PATH
+# Step 1: Initialize current CMake path
 $Cmake = (Get-Command cmake -ErrorAction SilentlyContinue).Source
+
+# Step 2: Ignore MSYS2 CMake (causes errors) and find Native Windows CMake
 if (-not $Cmake -or $Cmake -like "*msys64*") {
-    $Cmake = "C:\Users\segou\AppData\Local\Programs\Python\Python314\Scripts\cmake.exe"
+    Write-Host "[INFO] MSYS2 CMake detected or missing. Searching for native Windows CMake..." -ForegroundColor Yellow
+    $CommonPaths = @(
+        "$env:ProgramFiles\CMake\bin\cmake.exe",
+        "${env:ProgramFiles(x86)}\CMake\bin\cmake.exe",
+        "$env:LOCALAPPDATA\Programs\Python\*\Scripts\cmake.exe",
+        "$env:APPDATA\Python\*\Scripts\cmake.exe"
+    )
+    $Cmake = Resolve-Path $CommonPaths -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Path
+    
+    if ($Cmake) {
+        Write-Host "[OK] Found native CMake at: $Cmake" -ForegroundColor Green
+    } else {
+        Write-Error "[ERROR] Native Windows CMake not found. Please install CMake from cmake.org or via 'pip install cmake'."
+        throw "CMake not found"
+    }
 }
-$env:PATH = "C:\msys64\ucrt64\bin;" + $env:PATH
 
-# Bước 2: Khởi tạo cấu hình CMake MinGW
-& $Cmake -B build -S . -G "MinGW Makefiles"
+# Step 3: Ensure GCC (MSYS2 UCRT64) is in the PATH for compilation
+if ($env:PATH -notlike "*msys64\ucrt64\bin*") {
+    $env:PATH = "C:\msys64\ucrt64\bin;" + $env:PATH
+}
 
-# Bước 3: Biên dịch toàn bộ 12 mục tiêu (Song song 8 luồng)
-& $Cmake --build build --parallel 8
+# Step 4: Configure and Build the project (Forcing MSYS2 GCC to prevent MSVC conflicts)
+Write-Host "[INFO] Cleaning previous build cache..." -ForegroundColor Cyan
+if (Test-Path build) { Remove-Item -Recurse -Force build }
 
-# Bước 4: Chạy kiểm thử tự động CTest
-ctest --test-dir build --output-on-failure
+Write-Host "[INFO] Configuring project..." -ForegroundColor Cyan
+& $Cmake -B build -S . -G "MinGW Makefiles" -DCMAKE_CXX_COMPILER="C:/msys64/ucrt64/bin/g++.exe" -DCMAKE_C_COMPILER="C:/msys64/ucrt64/bin/gcc.exe"
+if ($LASTEXITCODE -ne 0) { throw "Configuration failed with exit code $LASTEXITCODE" }
+
+Write-Host "[INFO] Building project (limited parallel jobs to prevent Out-Of-Memory)..." -ForegroundColor Cyan
+& $Cmake --build build --config Release --parallel 2
+if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
+
+Write-Host "[OK] Build completed successfully." -ForegroundColor Green
 ```
 
-### Cách nhanh nhất & An toàn nhất (Khuyên dùng):
-Chạy script tự động đã xử lý sẵn xung đột đường dẫn:
+### Cách 2: Biên dịch bằng Ninja (Siêu tốc)
+Yêu cầu đã cài đặt Ninja (`pacman -S mingw-w64-ucrt-x86_64-ninja`). Dán đoạn mã này vào PowerShell:
+
 ```powershell
-.\build.ps1
+# Step 0: Di chuyển vào thư mục dự án
+cd "Path\To\Project"
+
+# Step 1: Initialize current CMake path
+$Cmake = (Get-Command cmake -ErrorAction SilentlyContinue).Source
+
+# Step 2: Ignore MSYS2 CMake and find Native Windows CMake
+if (-not $Cmake -or $Cmake -like "*msys64*") {
+    $CommonPaths = @(
+        "$env:ProgramFiles\CMake\bin\cmake.exe",
+        "${env:ProgramFiles(x86)}\CMake\bin\cmake.exe",
+        "$env:LOCALAPPDATA\Programs\Python\*\Scripts\cmake.exe",
+        "$env:APPDATA\Python\*\Scripts\cmake.exe"
+    )
+    $Cmake = Resolve-Path $CommonPaths -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Path
+    
+    if (-not $Cmake) {
+        Write-Error "[ERROR] Native Windows CMake not found. Please install CMake from cmake.org or via 'pip install cmake'."
+        throw "CMake not found"
+    }
+}
+
+# Step 3: Ensure GCC (MSYS2 UCRT64) and Ninja are in the PATH
+if ($env:PATH -notlike "*msys64\ucrt64\bin*") {
+    $env:PATH = "C:\msys64\ucrt64\bin;" + $env:PATH
+}
+
+# Step 4: Configure and Build with Ninja
+Write-Host "[INFO] Cleaning previous build cache..." -ForegroundColor Cyan
+if (Test-Path build) { Remove-Item -Recurse -Force build }
+
+Write-Host "[INFO] Configuring project with Ninja..." -ForegroundColor Cyan
+& $Cmake -B build -S . -G "Ninja" -DCMAKE_CXX_COMPILER="C:/msys64/ucrt64/bin/g++.exe" -DCMAKE_C_COMPILER="C:/msys64/ucrt64/bin/gcc.exe"
+if ($LASTEXITCODE -ne 0) { throw "Configuration failed with exit code $LASTEXITCODE" }
+
+Write-Host "[INFO] Building project with Ninja (limited parallel jobs to prevent Out-Of-Memory)..." -ForegroundColor Cyan
+& $Cmake --build build --config Release --parallel 2
+if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
+
+Write-Host "[OK] Build completed successfully." -ForegroundColor Green
 ```
 
 ---
 
-## 4. HƯỚNG DẪN KIỂM THỬ VÀ XÁC NHẬN TOÀN BỘ DỰ ÁN (TESTING GUIDE)
+## 4. HƯỚNG DẪN SỬ DỤNG VÀ KIỂM THỬ (TESTING & RUNNING)
 
-### 4.1. Chạy Tự động 9 Unit Tests (CTest Suite)
+### 4.1. Chạy Kiểm Thử Tự Động (Unit Tests)
+Sau khi biên dịch thành công, chạy bộ kiểm thử toàn diện của dự án. 
 
-#### Cách 1: Sử dụng Kịch bản 1-Click PowerShell
-```powershell
-.\build.ps1
-```
-
-#### Cách 2: Chạy qua lệnh CTest
+**Cách 1 (Tiêu chuẩn):** Sử dụng CTest:
 ```powershell
 ctest --test-dir build --output-on-failure
 ```
 
-**Danh sách 9 Unit Test đạt 100% PASS**:
-1. `test_client.exe`: OllamaClient JSON payload, base URL & HTTP exception handling.
-2. `test_tools.exe`: ToolRegistry allow/deny policy & 5 core + 3 custom tools.
-3. `test_loop_detector.exe`: Thuật toán phát hiện vòng lặp Generic Repeat & Ping-Pong.
-4. `test_skill_loader.exe`: Parse header markdown skill files & keyword auto-injection.
-5. `test_agent_loop.exe`: ReAct loop parsing & Observer step_hook interface.
-6. `test_evaluators.exe`: KeywordEvaluator & FunctionalEvaluator (Strategy pattern).
-7. `test_bonus_gui.exe`: GUI action parsing, screenshot Base64 encoding & Win32 events.
-8. `test_bonus_vector_memory.exe`: SQLite vector embedding & Cosine Similarity math.
-9. `test_bonus_multi_agent.exe`: Thread-safe MessageQueue & sub-agent thread spawning.
+**Cách 2 (Thay thế nếu CTest bị lỗi):** Sử dụng script kiểm thử độc lập:
+```powershell
+.\run_tests.ps1
+```
 
-Chạy từng unit test riêng lẻ nếu cần:
+**Cách 3 (Thủ công):** Chạy từng file kiểm thử độc lập để dễ dàng theo dõi lỗi:
 ```powershell
 .\build\test_client.exe
 .\build\test_tools.exe
+.\build\test_agent_loop.exe
+.\build\test_evaluators.exe
 .\build\test_loop_detector.exe
+.\build\test_skill_loader.exe
+```
+Hệ thống sẽ chạy qua các Unit Test (Ollama Client, Tools, ReAct Loop, v.v.) để đảm bảo 100% tính nguyên vẹn của mã nguồn.
+
+> **QUAN TRỌNG: Kiểm Thử Các Tính Năng Bonus (GUI, Vector Memory, Multi-Agent)**  
+> Cả 3 tính năng Bonus được gom chung vào một file executable duy nhất và **tách biệt hoàn toàn** khỏi bộ `ctest` và `unit_tests.exe` tiêu chuẩn.  
+> *Lý do*: Việc kiểm thử tự động giao diện (GUI Agent) thao tác trực tiếp lên Win32 API, chiếm quyền điều khiển chuột/bàn phím và mở cửa sổ thực tế. Việc cô lập này giữ cho các test tiêu chuẩn chạy ẩn (headless), nhanh chóng, và không gây loạn focus màn hình.  
+> **Cách chạy (Dành cho Graders/Người chấm điểm):**  
+> Chạy trực tiếp file thực thi độc lập để test toàn bộ các tính năng Bonus (GUI, Vector Memory, Multi-Agent):  
+> ```powershell
+> .\build\test_bonus_features.exe
+> ```
+> *(Hoặc `.\build\Release\test_bonus_features.exe` tùy vào trình biên dịch).*
+
+### 4.2. Chạy Đánh Giá Benchmark (`run_eval`)
+Chạy bộ tự động giải quyết 14 nhiệm vụ thực tế đa dạng (Simple, Medium, Hard, Bonus):
+```powershell
+.\build\run_eval.exe --enable-gui
+```
+Kết quả hành vi của Agent (Thoughts, Actions, Latency) sẽ được xuất dưới dạng tệp JSON tại thư mục `trajectories/`.
+
+### 4.3. Chạy AI Browser Automation Demo
+Trình diễn khả năng Agent tương tác trực tiếp với giao diện Windows (GUI) để tự động hóa tìm kiếm trên web:
+```powershell
+.\build\run_browser_demo.exe
 ```
 
----
-
-### 4.2. Chạy Bộ Đánh Giá Benchmark (`run_eval.exe`)
-
-Đánh giá tự động trên 14 nhiệm vụ benchmark (`benchmark/tasks.json`):
-
+### 4.4. Chạy Ứng Dụng CLI Trực Tiếp
+Để tương tác trò chuyện trực tiếp với AI Agent:
 ```powershell
-cmd /c "set PATH=C:\msys64\ucrt64\bin;%PATH% && build\run_eval.exe --enable-gui"
-```
-
-**Kết quả xác nhận**:
-* **Success Rate**: 100.00% (14/14 tasks passed).
-* **Trajectory Output**: Xuất 14 file nhật ký JSON tại `trajectories/trajectory_*.json`.
-
----
-
-### 4.3. Chạy Demo Tự Động Hóa Trình Duyệt (GUI Agent Browser Demo)
-
-Chạy kịch bản GUI Agent tự động điều khiển trình duyệt Edge/Chrome:
-
-```powershell
-cmd /c "set PATH=C:\msys64\ucrt64\bin;%PATH% && build\run_browser_demo.exe"
-```
-
-**Các thao tác thực hiện**:
-1. Khởi chạy trình duyệt web.
-2. Tự động di chuyển chuột & click ô tìm kiếm.
-3. Nhập từ khóa tìm kiếm và nhấn Enter.
-4. Chụp ảnh màn hình `screenshot.bmp` mã hóa Base64.
-5. Trích xuất văn bản kết quả vào tệp `browser_result.txt`.
-
----
-
-### 4.4. Chạy Ứng Dụng AI Agent Chính (CLI Interactive App)
-
-Khởi chạy CLI Agent tương tác dòng lệnh ReAct:
-
-```powershell
-cmd /c "set PATH=C:\msys64\ucrt64\bin;%PATH% && build\agent_app.exe"
+.\build\agent_app.exe
 ```
 
 ---
@@ -202,9 +225,6 @@ cmd /c "set PATH=C:\msys64\ucrt64\bin;%PATH% && build\agent_app.exe"
 OOP AI Agents 2026/
 ├── CMakeLists.txt
 ├── README.md
-├── GIT_COMMIT_PLAN.md
-├── AI_Agent_Coding_Tasks.md
-├── build.ps1
 ├── src/
 │   ├── main.cpp
 │   ├── agent/
@@ -243,17 +263,7 @@ OOP AI Agents 2026/
 │   ├── run_eval.cpp
 │   └── run_browser_demo.cpp
 ├── tests/
-│   ├── test_client.cpp
-│   ├── test_tools.cpp
-│   ├── test_loop_detector.cpp
-│   ├── test_skill_loader.cpp
-│   ├── test_agent_loop.cpp
-│   ├── test_evaluators.cpp
-│   ├── test_bonus_gui.cpp
-│   ├── test_bonus_vector_memory.cpp
-│   └── test_bonus_multi_agent.cpp
-├── scripts/
-│   └── push_commits.ps1
+│   └── (Unit tests for all components)
 └── docs/
     ├── class_diagram.mmd / .png
     ├── sequence_diagram_agent.mmd / .png

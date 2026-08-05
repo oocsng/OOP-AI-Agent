@@ -1,5 +1,15 @@
 # Build artifacts
 build/
+bin/
+out/
+*.exe
+*.obj
+*.o
+*.dll
+*.pdb
+*.sqlite
+*.log
+.env
 cmake_out.txt
 cmakelog.txt
 out.txt
@@ -9,3 +19,4 @@ browser_result.txt
 *.db
 *.bmp
 *.bin
+*.py

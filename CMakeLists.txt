@@ -39,7 +39,7 @@ add_executable(agent_app src/main.cpp ${CORE_SOURCES})
 target_link_libraries(agent_app PRIVATE
     CURL::libcurl
     nlohmann_json::nlohmann_json
-    SQLite3::SQLite3
+    SQLite::SQLite3
     gdi32
 )
 
@@ -49,7 +49,7 @@ add_executable(run_eval benchmark/run_eval.cpp ${CORE_SOURCES})
 target_link_libraries(run_eval PRIVATE
     CURL::libcurl
     nlohmann_json::nlohmann_json
-    SQLite3::SQLite3
+    SQLite::SQLite3
     gdi32
 )
 
@@ -59,7 +59,7 @@ add_executable(run_browser_demo benchmark/run_browser_demo.cpp ${CORE_SOURCES})
 target_link_libraries(run_browser_demo PRIVATE
     CURL::libcurl
     nlohmann_json::nlohmann_json
-    SQLite3::SQLite3
+    SQLite::SQLite3
     gdi32
 )
 
@@ -86,9 +86,7 @@ set(TEST_NAMES
     test_skill_loader
     test_agent_loop
     test_evaluators
-    test_bonus_gui
-    test_bonus_vector_memory
-    test_bonus_multi_agent
+    test_bonus_features
 )
 
 foreach(test_name ${TEST_NAMES})
@@ -96,7 +94,7 @@ foreach(test_name ${TEST_NAMES})
     target_link_libraries(${test_name} PRIVATE
         CURL::libcurl
         nlohmann_json::nlohmann_json
-        SQLite3::SQLite3
+        SQLite::SQLite3
         gdi32
     )
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
