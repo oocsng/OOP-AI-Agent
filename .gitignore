@@ -20,3 +20,9 @@ browser_result.txt
 *.bmp
 *.bin
 *.py
+.codegraph/
+.vscode/
+*.png
+*.db
+build/
+trajectories/
