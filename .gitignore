@@ -23,6 +23,9 @@ browser_result.txt
 .codegraph/
 .vscode/
 *.png
-*.db
-build/
 trajectories/
+AGENTS.md
+cpp23_info.txt
+AI_Agent_Coding_Tasks.md
+GIT_COMMIT_PLAN.md
+GEMINI.md
