@@ -1,0 +1,254 @@
+classDiagram
+    class LLMClient {
+        <<interface>>
+        +chat(history, config)* LLMResponse
+    }
+
+    class OllamaClient {
+        +chat(history, config) LLMResponse
+        +encode_file_base64(file_path) string
+    }
+
+    LLMClient <|-- OllamaClient
+
+    class Tool {
+        <<interface>>
+        +name()* string
+        +description()* string
+        +parameters_schema()* json
+        +execute(args)* string
+    }
+
+    class ExecTool {
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+    }
+
+    class ReadFileTool {
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+    }
+
+    class WriteFileTool {
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+    }
+
+    class WebSearchTool {
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+    }
+
+    class MemorySaveTool {
+        -string db_path_
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+    }
+
+    class MemorySearchTool {
+        -string db_path_
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+    }
+
+    class CalculatorTool {
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+    }
+
+    class DateTimeTool {
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+    }
+
+    class SystemInfoTool {
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+    }
+
+    class RegexExtractorTool {
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+    }
+
+    class GuiTool {
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+        +encode_base64(data)$ string
+        +get_clipboard_text()$ string
+    }
+
+    class VectorMemoryTool {
+        -sqlite3* db_
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+        +cosine_similarity(a, b)$ double
+    }
+
+    class SubAgentTool {
+        +name() string
+        +description() string
+        +parameters_schema() json
+        +execute(args) string
+    }
+
+    Tool <|-- ExecTool
+    Tool <|-- ReadFileTool
+    Tool <|-- WriteFileTool
+    Tool <|-- WebSearchTool
+    Tool <|-- MemorySaveTool
+    Tool <|-- MemorySearchTool
+    Tool <|-- CalculatorTool
+    Tool <|-- DateTimeTool
+    Tool <|-- SystemInfoTool
+    Tool <|-- RegexExtractorTool
+    Tool <|-- GuiTool
+    Tool <|-- VectorMemoryTool
+    Tool <|-- SubAgentTool
+
+    class ToolRegistry {
+        -unordered_map tools_
+        -unordered_set allow_list_
+        -unordered_set deny_list_
+        +register_tool(tool)
+        +get_tool(name) Tool
+        +has_tool(name) bool
+        +set_allow_list(list)
+        +set_deny_list(list)
+        +clear_policies()
+        +is_tool_allowed(name) bool
+        +execute_tool(name, args) string
+        +get_tools_schema_json() string
+    }
+
+    ToolRegistry o-- Tool
+
+    class LoopDetector {
+        -vector history_
+        -size_t repeat_warning_threshold_
+        -size_t repeat_stop_threshold_
+        -size_t pingpong_stop_threshold_
+        +reset()
+        +record_and_check(name, args) LoopCheckResult
+    }
+
+    class SkillLoader {
+        -vector skills_
+        +load_skills(dir)
+        +match_skills(prompt) vector
+        +inject_skills(prompt, matched) string
+        +auto_inject(base, user) string
+        +parse_skill_file(path)$ Skill
+    }
+
+    class AgentLoop {
+        #shared_ptr client_
+        #shared_ptr tool_registry_
+        #shared_ptr skill_loader_
+        #LoopDetector loop_detector_
+        #StepHook step_hook_
+        #size_t max_steps_
+        +set_step_hook(hook)
+        +set_max_steps(steps)
+        +run(task_id, prompt, config) Trajectory
+        #build_system_prompt(prompt) string
+        #parse_llm_response(text) ParsedAction
+        #is_goal_achieved(action) bool
+        #think(history, config) LLMResponse
+        #act(name, args) string
+    }
+
+    AgentLoop --> LLMClient
+    AgentLoop --> ToolRegistry
+    AgentLoop --> SkillLoader
+    AgentLoop *-- LoopDetector
+
+    class MessageQueue {
+        -queue q_
+        -mutex mtx_
+        -condition_variable cv_
+        +push(msg)
+        +pop() string
+        +empty() bool
+    }
+
+    class SubAgentManager {
+        -vector workers_
+        -unordered_map inboxes_
+        -mutex map_mtx_
+        +spawn_agent(id, loop, task)
+        +send_message(to_id, msg)
+        +receive_message(from_id) string
+        +join_all()
+    }
+
+    SubAgentManager *-- MessageQueue
+
+    class Evaluator {
+        <<interface>>
+        +evaluate(trajectory, spec)* EvalResult
+    }
+
+    class KeywordEvaluator {
+        +evaluate(trajectory, spec) EvalResult
+    }
+
+    class FunctionalEvaluator {
+        +evaluate(trajectory, spec) EvalResult
+    }
+
+    Evaluator <|-- KeywordEvaluator
+    Evaluator <|-- FunctionalEvaluator
+
+    class HarnessRunner {
+        -shared_ptr agent_loop_
+        -string output_dir_
+        +run_task(spec, config) EvalSummary
+    }
+
+    HarnessRunner --> AgentLoop
+    HarnessRunner --> Evaluator
+
+    class Trajectory {
+        +string task_id
+        +string model
+        +bool success
+        +int total_tokens
+        +double total_time_ms
+        +vector steps
+    }
+
+    class Step {
+        +size_t step_id
+        +string thought
+        +string action
+        +string tool_result
+        +int tokens_used
+        +double latency_ms
+    }
+
+    Trajectory *-- Step

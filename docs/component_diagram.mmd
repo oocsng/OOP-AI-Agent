@@ -1,0 +1,55 @@
+flowchart TB
+    subgraph CoreFramework["Core Framework (src/)"]
+        Client["Client Module (LLMClient, OllamaClient)"]
+        Agent["Agent Module (AgentLoop, LoopDetector, SkillLoader)"]
+        Tools["Tools Module (ToolRegistry, 13 Tools)"]
+        Harness["Harness Module (HarnessRunner, Evaluators)"]
+    end
+
+    subgraph EntryPoints["Execution Entry Points"]
+        MainApp["Main App (agent_app)"]
+        BenchmarkRunner["Benchmark Runner (run_eval)"]
+        BrowserDemo["Browser Demo (run_browser_demo)"]
+        UnitTests["Unit Testing Suite (unit_tests)"]
+    end
+
+    subgraph ExternalLibs["External Third-Party Libraries"]
+        LibCurl["libcurl"]
+        JSON["nlohmann_json"]
+        SQLite["sqlite3"]
+        Win32API["Win32 GDI / OS API"]
+    end
+
+    subgraph ExternalServices["External Services"]
+        Ollama["Ollama LLM Server (qwen2.5:7b)"]
+    end
+
+    MainApp --> Agent
+    MainApp --> Tools
+    MainApp --> Client
+
+    BenchmarkRunner --> Harness
+    BenchmarkRunner --> Agent
+    BenchmarkRunner --> Tools
+
+    BrowserDemo --> Agent
+    BrowserDemo --> Tools
+    BrowserDemo --> Client
+
+    UnitTests --> Agent
+    UnitTests --> Tools
+    UnitTests --> Client
+    UnitTests --> Harness
+
+    Agent --> Client
+    Agent --> Tools
+    Harness --> Agent
+
+    Client --> LibCurl
+    Client --> JSON
+    Client --> Ollama
+
+    Tools --> SQLite
+    Tools --> JSON
+    Tools --> LibCurl
+    Tools --> Win32API

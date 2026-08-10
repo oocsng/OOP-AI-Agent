@@ -1,0 +1,60 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant HR as HarnessRunner
+    participant AL as AgentLoop
+    participant SL as SkillLoader
+    participant LC as LLMClient / OllamaClient
+    participant LD as LoopDetector
+    participant TR as ToolRegistry
+    participant T as Tool (Exec/File/Gui/etc.)
+    participant SH as StepHook (Observer)
+
+    User->>HR: run_task(TaskSpec, LLMConfig)
+    HR->>AL: set_step_hook(ObserverCallback)
+    HR->>AL: run(task_id, user_prompt, config)
+
+    activate AL
+    AL->>LD: reset()
+    AL->>SL: auto_inject(base_prompt, user_prompt)
+    SL-->>AL: system_prompt_with_skills
+
+    loop ReAct Step (step_idx = 1 to max_steps)
+        AL->>LC: chat(history, config)
+        activate LC
+        LC-->>AL: LLMResponse (content, tokens_used)
+        deactivate LC
+
+        AL->>AL: parse_llm_response(content)
+
+        alt Is Goal Achieved (Final Answer)
+            AL->>SH: notify(Step with Final Answer)
+            AL-->>HR: Trajectory (success = true)
+        else Requires Tool Execution
+            AL->>LD: record_and_check(tool_name, tool_args)
+            LD-->>AL: LoopCheckResult
+
+            alt Loop Status == CriticalStop
+                AL->>SH: notify(Step with Loop Stop message)
+                AL-->>HR: Trajectory (success = false)
+            else Loop Status == Normal / Warning
+                AL->>TR: execute_tool(tool_name, tool_args)
+                activate TR
+                TR->>TR: is_tool_allowed(tool_name)
+                TR->>T: execute(tool_args)
+                activate T
+                T-->>TR: tool_output
+                deactivate T
+                TR-->>AL: tool_output
+                deactivate TR
+
+                AL->>SH: notify(Step with Thought, Action & Tool Result)
+                AL->>AL: Append Assistant Thought & Tool Result to history
+            end
+        end
+    end
+
+    deactivate AL
+
+    HR->>HR: evaluate(trajectory, task_spec)
+    HR-->>User: EvalSummary (passed, score, feedback, trajectory)
