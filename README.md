@@ -58,14 +58,11 @@ curl http://localhost:11434/api/tags
 
 ---
 
-## 3. HƯỚNG DẪN BIÊN DỊCH TỐC ĐỘ CAO (ACCELERATED BUILD)
+## 3. HƯỚNG DẪN BIÊN DỊCH
 
 Dự án hỗ trợ biên dịch song song (`--parallel`) giúp giảm đáng kể thời gian build. 
 
-- **Cách 1 (Tiêu chuẩn)**: Sử dụng cấu hình MinGW Makefiles. (An toàn cho hệ thống ít RAM).
-- **Cách 2 (Siêu tốc - Khuyến nghị)**: Cài đặt Ninja (`pacman -S mingw-w64-ucrt-x86_64-ninja`) và biên dịch bằng Ninja để nhanh gấp 5 lần.
-
-### Cách 1: Biên dịch bằng MinGW Makefiles (Tiêu chuẩn)
+### Biên dịch bằng MinGW Makefiles
 Mở PowerShell tại thư mục gốc của dự án và dán toàn bộ đoạn mã sau:
 
 ```powershell
@@ -108,59 +105,12 @@ Write-Host "[INFO] Configuring project..." -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "Configuration failed with exit code $LASTEXITCODE" }
 
 Write-Host "[INFO] Building project (limited parallel jobs to prevent Out-Of-Memory)..." -ForegroundColor Cyan
-& $Cmake --build build --config Release --parallel 4
+& $Cmake --build build --config Release --parallel 8
 if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
 
 Write-Host "[OK] Build completed successfully." -ForegroundColor Green
 ```
 
-### Cách 2: Biên dịch bằng Ninja (Siêu tốc)
-Yêu cầu đã cài đặt Ninja (`pacman -S mingw-w64-ucrt-x86_64-ninja`). Dán đoạn mã này vào PowerShell:
-
-```powershell
-# Step 0: Di chuyển vào thư mục dự án
-cd "Path\To\Project"
-
-# Step 1: Initialize current CMake path
-$Cmake = (Get-Command cmake -ErrorAction SilentlyContinue).Source
-
-# Step 2: Ignore MSYS2 CMake and find Native Windows CMake
-if (-not $Cmake -or $Cmake -like "*msys64*") {
-    $CommonPaths = @(
-        "$env:ProgramFiles\CMake\bin\cmake.exe",
-        "${env:ProgramFiles(x86)}\CMake\bin\cmake.exe",
-        "$env:LOCALAPPDATA\Programs\Python\*\Scripts\cmake.exe",
-        "$env:APPDATA\Python\*\Scripts\cmake.exe"
-    )
-    $Cmake = Resolve-Path $CommonPaths -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Path
-    
-    if (-not $Cmake) {
-        Write-Error "[ERROR] Native Windows CMake not found. Please install CMake from cmake.org or via 'pip install cmake'."
-        throw "CMake not found"
-    }
-}
-
-# Step 3: Ensure GCC (MSYS2 UCRT64) and Ninja are in the PATH
-if ($env:PATH -notlike "*msys64\ucrt64\bin*") {
-    $env:PATH = "C:\msys64\ucrt64\bin;" + $env:PATH
-}
-
-# Step 4: Configure and Build with Ninja
-Write-Host "[INFO] Cleaning previous build cache..." -ForegroundColor Cyan
-if (Test-Path build) { Remove-Item -Recurse -Force build }
-
-Write-Host "[INFO] Configuring project with Ninja..." -ForegroundColor Cyan
-& $Cmake -B build -S . -G "Ninja" -DCMAKE_CXX_COMPILER="C:/msys64/ucrt64/bin/g++.exe" -DCMAKE_C_COMPILER="C:/msys64/ucrt64/bin/gcc.exe"
-if ($LASTEXITCODE -ne 0) { throw "Configuration failed with exit code $LASTEXITCODE" }
-
-Write-Host "[INFO] Building project with Ninja (limited parallel jobs to prevent Out-Of-Memory)..." -ForegroundColor Cyan
-& $Cmake --build build --config Release --parallel 4
-if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
-
-Write-Host "[OK] Build completed successfully." -ForegroundColor Green
-```
-
----
 
 ## 4. HƯỚNG DẪN SỬ DỤNG VÀ KIỂM THỬ (TESTING & RUNNING)
 
