@@ -1,0 +1,9 @@
+[
+  {
+    "task_id": "task-hard-02",
+    "prompt": "You MUST extract the real hardware specifications of this exact machine. DO NOT hallucinate or guess fake specs. The `exec_tool` runs in Windows CMD, so you MUST include the powershell prefix.\nStep 1: Use `exec_tool` with exactly this command: `powershell.exe -Command \\\"(Get-CimInstance Win32_Processor).Name\\\"`\nStep 2: Use `exec_tool` with exactly this command: `powershell.exe -Command \\\"$s=0; foreach($m in Get-CimInstance Win32_PhysicalMemory){$s+=$m.Capacity}; [math]::Round($s/1GB)\\\"`\nStep 3: Use `exec_tool` with exactly this command: `powershell.exe -Command \\\"(Get-CimInstance Win32_VideoController)[0].Name\\\"`\nStep 4: After successfully getting the real outputs, explicitly use the `write_file` tool to save them to `sys_report.txt` in this exact format:\nCPU: [Output from Step 1]\nRAM: [Output from Step 2] GB\nGPU: [Output from Step 3]\n\nCRITICAL: You MUST execute all 3 commands one by one. DO NOT skip to write_file until you have the real data.",
+    "expected_keywords": ["exec", "write_file", "sys_report.txt"],
+    "test_command": "powershell -NoProfile -Command \"$c = Get-Content 'sys_report.txt' -Raw -ErrorAction Ignore; if ($c -match 'CPU' -and $c -match 'GPU' -and $c -match 'RAM') { exit 0 } else { exit 1 }\"",
+    "category": "hard"
+  }
+]

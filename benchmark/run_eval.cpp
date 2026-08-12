@@ -148,15 +148,22 @@ int main(int argc, char* argv[]) {
         total_tokens += summary.trajectory.total_tokens;
         total_time_ms += summary.trajectory.total_time_ms;
 
-        bool success = summary.keyword_eval.passed;
+        bool success = true;
+        if (!task.expected_keywords.empty()) {
+            success = success && summary.keyword_eval.passed;
+        }
+        if (!task.test_command.empty()) {
+            success = success && summary.functional_eval.passed;
+        }
         if (success) passed_count++;
 
-        std::println("[{}]  -> Result: {} | Tokens: {} | Latency: {:.2f}ms | Feedback: {}",
+        std::println("[{}]  -> Result: {} | Tokens: {} | Latency: {:.2f}ms | Feedback: {} | Functional: {}",
                      agent::utils::get_local_timestamp(),
                      success ? "PASSED" : "FAILED",
                      summary.trajectory.total_tokens,
                      summary.trajectory.total_time_ms,
-                     summary.keyword_eval.feedback);
+                     summary.keyword_eval.feedback,
+                     summary.functional_eval.feedback);
     }
 
     double success_rate = tasks.empty() ? 0.0 : (static_cast<double>(passed_count) / tasks.size()) * 100.0;
