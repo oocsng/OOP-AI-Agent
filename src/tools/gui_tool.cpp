@@ -6,6 +6,9 @@
 #include <chrono>
 #include <regex>
 #include <algorithm>
+#include <memory>
+#include <array>
+#include <cstdio>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -222,33 +225,25 @@ std::string GuiTool::execute(const nlohmann::json& args) {
     if (action == "type") {
         std::string text = effective_args.value("text", "");
         
-        // Force inject -NoProfile for PowerShell
-        size_t pos;
-        while ((pos = text.find("powershell.exe ")) != std::string::npos) {
-            if (text.find("powershell.exe -NoProfile ") != pos) {
-                text.replace(pos, 15, "powershell.exe -NoProfile ");
-            } else {
-                break;
+        std::string cmd = "powershell.exe -NoProfile -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('" + text + "')\" 2>&1";
+        
+        std::string result;
+        std::array<char, 256> buffer;
+#if defined(_WIN32)
+        std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd.c_str(), "r"), _pclose);
+#else
+        std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+#endif
+        if (pipe) {
+            while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
+                result += buffer.data();
             }
         }
-        while ((pos = text.find("powershell ")) != std::string::npos) {
-            text.replace(pos, 11, "powershell.exe -NoProfile ");
+        
+        if (!result.empty() && result.find("Exception") != std::string::npos) {
+            return result;
         }
 
-        for (char c : text) {
-            SHORT vk = VkKeyScan(c);
-            BYTE vk_code = LOBYTE(vk);
-            BYTE shift_state = HIBYTE(vk);
-            if (shift_state & 1) {
-                keybd_event(VK_SHIFT, 0, 0, 0);
-            }
-            keybd_event(vk_code, 0, 0, 0);
-            keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0);
-            if (shift_state & 1) {
-                keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(15));
-        }
         return "Typed: " + text;
     } else if (action == "key") {
         std::string k = effective_args.value("key", "enter");
