@@ -10,8 +10,8 @@ void test_config_and_exceptions() {
     LLMConfig config;
     const char* env_url = std::getenv("LLM_BASE_URL");
     const char* env_model = std::getenv("LLM_MODEL");
-    std::string expected_url = (env_url && env_url[0] != '\0') ? env_url : "";
-    std::string expected_model = (env_model && env_model[0] != '\0') ? env_model : "";
+    std::string expected_url = (env_url && env_url[0] != '\0') ? env_url : "http://localhost:11434";
+    std::string expected_model = (env_model && env_model[0] != '\0') ? env_model : "qwen2.5:7b";
 
     TEST_ASSERT(config.base_url == expected_url, "Default base_url should match env or be empty");
     TEST_ASSERT(config.model_name == expected_model, "Default model_name should match env or be empty");
