@@ -63,12 +63,11 @@ curl http://localhost:11434/api/tags
 Dự án hỗ trợ biên dịch song song (`--parallel`) giúp giảm đáng kể thời gian build. 
 
 ### Biên dịch bằng MinGW Makefiles
+Chuyển đến thư mục dự án: `cd "Path\To\Project"`
+
 Mở PowerShell tại thư mục gốc của dự án và dán toàn bộ đoạn mã sau:
 
 ```powershell
-# Step 0: Di chuyển vào thư mục dự án (Thay đổi đường dẫn này thành thư mục chứa code của bạn)
-cd "Path\To\Project"
-
 # Step 1: Initialize current CMake path
 $Cmake = (Get-Command cmake -ErrorAction SilentlyContinue).Source
 
@@ -161,6 +160,9 @@ Kết quả hành vi của Agent (Thoughts, Actions, Latency) sẽ được xu�
 
 ### 4.3. Chạy AI Browser Automation Demo
 Trình diễn khả năng Agent tương tác trực tiếp với giao diện Windows (GUI) để tự động hóa tìm kiếm trên web:
+
+> **Lưu ý quan trọng:** Bạn cần bỏ tay khỏi chuột và bàn phím trong khoảng 15 giây để AI có thể tự động thực hiện các thao tác (nhập liệu, phím tắt) từng bước một cách chính xác nhất.
+
 ```powershell
 $env:LLM_BASE_URL="http://localhost:11434"
 $env:LLM_MODEL="qwen2.5:7b"

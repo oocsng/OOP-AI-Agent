@@ -205,8 +205,8 @@ int main() {
                 return "Error: You cannot finish yet. You must complete the GUI sequence (type, enter, sleep, ctrl+a, ctrl+c, read_clipboard) and use write_file to save the results.";
             }
             if (tool_name == "write_file") {
-                if (tool_args.value("path", "") != "browser_result.txt") {
-                    return "Error: You are only allowed to write to 'browser_result.txt'. Try again.";
+                if (tool_args.value("path", "") != "outputs/browser/browser_result.txt") {
+                    return "Error: You are only allowed to write to 'outputs/browser/browser_result.txt'. Try again.";
                 }
                 has_written_file = true;
             }
@@ -228,7 +228,7 @@ int main() {
                     res += " NEXT COMMAND: You MUST use gui_tool with action 'read_clipboard'.";
                 } else if (action == "read_clipboard" || action == "clipboard" || action == "get_clipboard") {
                     res = sanitize_google_results(res);
-                    res = "Clipboard read successfully. Content: " + res + "\nNEXT COMMAND: You MUST use write_file tool to save exactly this content to the path 'browser_result.txt'.";
+                    res = "Clipboard read successfully. Content: " + res + "\nNEXT COMMAND: You MUST use write_file tool to save exactly this content to the path 'outputs/browser/browser_result.txt'.";
                 }
             }
             return res;
@@ -338,9 +338,9 @@ int main() {
             clip_text = sanitize_google_results(clip_text);
         }
 
-        std::cout << Color::YELLOW << "[EXEC] Step 8: Saving extracted search result into browser_result.txt..." << Color::RESET << std::endl;
+        std::cout << Color::YELLOW << "[EXEC] Step 8: Saving extracted search result into outputs/browser/browser_result.txt..." << Color::RESET << std::endl;
         std::string write_res = registry->execute_tool("write_file", {
-            {"path", "browser_result.txt"},
+            {"path", "outputs/browser/browser_result.txt"},
             {"content", clip_text}
         });
         std::cout << Color::GREEN << "       " << write_res << Color::RESET << std::endl;
@@ -348,12 +348,12 @@ int main() {
 
     // Verify output file content
     std::cout << Color::CYAN << "\n==========================================================" << Color::RESET << std::endl;
-    std::cout << Color::CYAN << " 📄 EXTRACTED RESULT IN 'browser_result.txt':" << Color::RESET << std::endl;
+    std::cout << Color::CYAN << " 📄 EXTRACTED RESULT IN 'outputs/browser/browser_result.txt':" << Color::RESET << std::endl;
     std::cout << Color::CYAN << "==========================================================" << Color::RESET << std::endl;
 
-    std::string read_out = registry->execute_tool("read_file", {{"path", "browser_result.txt"}});
+    std::string read_out = registry->execute_tool("read_file", {{"path", "outputs/browser/browser_result.txt"}});
     if (read_out.find("Error") != std::string::npos || read_out.empty()) {
-        std::cout << Color::RED << "       [FAILURE] browser_result.txt was not created or is empty!" << Color::RESET << std::endl;
+        std::cout << Color::RED << "       [FAILURE] outputs/browser/browser_result.txt was not created or is empty!" << Color::RESET << std::endl;
     }
 
     std::cout << Color::BOLD << read_out << Color::RESET << "\n" << std::endl;

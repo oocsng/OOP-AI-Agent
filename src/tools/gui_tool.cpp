@@ -180,7 +180,7 @@ std::string GuiTool::execute(const nlohmann::json& args) {
 
 #ifdef _WIN32
     if (action == "screenshot") {
-        std::string out_path = effective_args.value("path", "screenshot.bmp");
+        std::string out_path = effective_args.value("path", "outputs/screen captures/screenshot.bmp");
         capture_screenshot(out_path);
         return "Screenshot captured and saved to '" + out_path + "'.";
     } else if (action == "click") {
