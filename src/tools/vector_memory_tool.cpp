@@ -27,12 +27,15 @@ std::vector<float> VectorMemoryTool::generate_embedding(const std::string& text)
     if (curl) {
         std::string response_string;
         const char* env_url = std::getenv("EMBEDDING_BASE_URL");
-        if (!env_url || env_url[0] == '\0') env_url = std::getenv("LLM_BASE_URL");
-        std::string base_url = (env_url && env_url[0] != '\0') ? env_url : "";
-        if (base_url.empty()) {
-            std::cerr << "[VectorMemory] ERROR: EMBEDDING_BASE_URL or LLM_BASE_URL is not set.\n";
-            return embed;
+        if (!env_url || env_url[0] == '\0') {
+            env_url = std::getenv("LLM_BASE_URL");
+            if (!env_url || env_url[0] == '\0') {
+                env_url = "http://localhost:11434";
+            }
+            std::cerr << "[WARN] EMBEDDING_BASE_URL is not set. Defaulting to: " << env_url << "\n";
+            std::cerr << "[INFO] To override, run: $env:EMBEDDING_BASE_URL=\"https://your-ngrok-url.com\"\n";
         }
+        std::string base_url = env_url;
         if (base_url.back() == '/') base_url.pop_back();
         if (!base_url.ends_with("/api/embeddings") && !base_url.ends_with("/v1/embeddings")) {
             base_url += "/api/embeddings";
@@ -40,11 +43,12 @@ std::vector<float> VectorMemoryTool::generate_embedding(const std::string& text)
         curl_easy_setopt(curl, CURLOPT_URL, base_url.c_str());
         
         const char* env_model = std::getenv("EMBEDDING_MODEL");
-        std::string model_name = (env_model && env_model[0] != '\0') ? env_model : "";
-        if (model_name.empty()) {
-            std::cerr << "[VectorMemory] ERROR: EMBEDDING_MODEL is not set.\n";
-            return embed;
+        if (!env_model || env_model[0] == '\0') {
+            std::cerr << "[WARN] EMBEDDING_MODEL is not set. Defaulting to: nomic-embed-text\n";
+            std::cerr << "[INFO] To override, run: $env:EMBEDDING_MODEL=\"your-model-name\"\n";
+            env_model = "nomic-embed-text";
         }
+        std::string model_name = env_model;
 
         nlohmann::json payload;
         payload["model"] = model_name;

@@ -6,18 +6,30 @@
 
 #include "dto/message.h"
 
-namespace agent {
-
 #include <cstdlib>
+#include <iostream>
+
+namespace agent {
 
 struct LLMConfig {
   std::string base_url{[] {
     const char* env_url = std::getenv("LLM_BASE_URL");
-    return (env_url && env_url[0] != '\0') ? std::string(env_url) : "";
+    if (!env_url || env_url[0] == '\0') {
+      std::cerr << "[WARN] LLM_BASE_URL is not set. Defaulting to local: http://localhost:11434\n";
+      std::cerr << "[INFO] If using a remote model (e.g., Colab), run this in PowerShell before executing:\n";
+      std::cerr << "       $env:LLM_BASE_URL=\"https://your-ngrok-url.com\"\n";
+      return std::string("http://localhost:11434");
+    }
+    return std::string(env_url);
   }()};
   std::string model_name{[] {
     const char* env_model = std::getenv("LLM_MODEL");
-    return (env_model && env_model[0] != '\0') ? std::string(env_model) : "";
+    if (!env_model || env_model[0] == '\0') {
+      std::cerr << "[WARN] LLM_MODEL is not set. Defaulting to: qwen2.5:7b\n";
+      std::cerr << "[INFO] To override, run: $env:LLM_MODEL=\"your-model-name\"\n";
+      return std::string("qwen2.5:7b");
+    }
+    return std::string(env_model);
   }()};
   double temperature{0.2};
   int max_tokens{2048};
