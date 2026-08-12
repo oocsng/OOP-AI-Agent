@@ -167,17 +167,18 @@ Write-Host "[OK] Build completed successfully." -ForegroundColor Green
 ### 4.1. Chạy Kiểm Thử Tự Động (Unit Tests)
 Sau khi biên dịch thành công, chạy bộ kiểm thử toàn diện của dự án. 
 
-**Cách 1 (Tiêu chuẩn):** Sử dụng CTest:
-```powershell
-ctest --test-dir build --output-on-failure
-```
-
-**Cách 2 (Thay thế nếu CTest bị lỗi):** Sử dụng script kiểm thử độc lập:
+**Cách 1 (Tiêu chuẩn):** Sử dụng script kiểm thử được cung cấp sẵn (khuyên dùng trên Windows):
 ```powershell
 .\run_tests.ps1
 ```
 
-**Cách 3 (Thủ công):** Chạy từng file kiểm thử độc lập để dễ dàng theo dõi lỗi:
+> **Troubleshooting: PowerShell Script Execution Error**
+> If you encounter an error stating that `.\run_tests.ps1 cannot be loaded` or `is not digitally signed` when running the script on a new machine, it is due to Windows default security policies. To temporarily bypass this for your current session, run the following command before executing the tests:
+> ```powershell
+> Set-ExecutionPolicy Bypass -Scope Process -Force
+> ```
+
+**Cách 2 (Thủ công):** Chạy từng file kiểm thử độc lập để dễ dàng theo dõi lỗi:
 ```powershell
 .\build\test_client.exe
 .\build\test_tools.exe
