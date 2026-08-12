@@ -203,6 +203,7 @@ Chạy bộ tự động giải quyết 13 nhiệm vụ thực tế đa dạng (
 ```powershell
 $env:LLM_BASE_URL="http://localhost:11434"
 $env:LLM_MODEL="qwen2.5:7b"
+$env:EMBEDDING_MODEL="nomic-embed-text"
 .\build\run_eval.exe --enable-gui
 ```
 Kết quả hành vi của Agent (Thoughts, Actions, Latency) sẽ được xuất dưới dạng tệp JSON tại thư mục `trajectories/`.
