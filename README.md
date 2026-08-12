@@ -122,7 +122,7 @@ Sau khi biên dịch thành công, chạy bộ kiểm thử toàn diện của d
 ```
 
 > **Troubleshooting: PowerShell Script Execution Error**
-> If you encounter an error stating that `.\run_tests.ps1 cannot be loaded` or `is not digitally signed` when running the script on a new machine, it is due to Windows default security policies. To temporarily bypass this for your current session, run the following command before executing the tests:
+> Nếu bạn gặp lỗi báo rằng `.\run_tests.ps1 cannot be loaded` hoặc `is not digitally signed` khi chạy lệnh trên một máy mới, vấn đề phát sinh do các chính sách bảo mật mặc định của Windows. Để tạm thời bỏ qua điều này cho session hiện tại, hãy chạy lệnh sau trước khi thực thi các bài kiểm thử:
 > ```powershell
 > Set-ExecutionPolicy Bypass -Scope Process -Force
 > ```
