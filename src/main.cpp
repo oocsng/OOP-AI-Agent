@@ -50,6 +50,7 @@ void run_interactive_chat() {
     }
 
     agent::AgentLoop agent_loop(client, registry, skill_loader, 15);
+    agent_loop.set_interactive_cli(true);
 
     agent::LLMConfig config;
     if (const char* base_url = std::getenv("LLM_BASE_URL")) config.base_url = base_url;

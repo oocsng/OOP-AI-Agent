@@ -36,17 +36,25 @@ std::string GuiTool::get_clipboard_text() {
     if (!OpenClipboard(NULL)) {
         return "Error: Unable to open clipboard.";
     }
-    HANDLE hData = GetClipboardData(CF_TEXT);
+    HANDLE hData = GetClipboardData(CF_UNICODETEXT);
     if (hData == NULL) {
         CloseClipboard();
         return "";
     }
-    char* pszText = static_cast<char*>(GlobalLock(hData));
-    if (pszText == NULL) {
+    wchar_t* pwszText = static_cast<wchar_t*>(GlobalLock(hData));
+    if (pwszText == NULL) {
         CloseClipboard();
         return "";
     }
-    std::string text(pszText);
+    
+    int utf8_size = WideCharToMultiByte(CP_UTF8, 0, pwszText, -1, NULL, 0, NULL, NULL);
+    std::string text(utf8_size, 0);
+    WideCharToMultiByte(CP_UTF8, 0, pwszText, -1, &text[0], utf8_size, NULL, NULL);
+    
+    if (!text.empty() && text.back() == '\0') {
+        text.pop_back();
+    }
+    
     GlobalUnlock(hData);
     CloseClipboard();
     return text;
@@ -182,7 +190,36 @@ std::string GuiTool::execute(const nlohmann::json& args) {
         mouse_event(MOUSEEVENTF_LEFTDOWN, x, y, 0, 0);
         mouse_event(MOUSEEVENTF_LEFTUP, x, y, 0, 0);
         return "Clicked at " + std::to_string(x) + ", " + std::to_string(y);
-    } else if (action == "type") {
+    }
+    
+    if (action == "type" || action == "key") {
+        HWND consoleWnd = GetConsoleWindow();
+        HWND foregroundWnd = GetForegroundWindow();
+        DWORD foregroundPid = 0;
+        GetWindowThreadProcessId(foregroundWnd, &foregroundPid);
+
+        char processName[MAX_PATH] = {0};
+        HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, foregroundPid);
+        if (hProcess) {
+            DWORD size = MAX_PATH;
+            QueryFullProcessImageNameA(hProcess, 0, processName, &size);
+            CloseHandle(hProcess);
+        }
+        std::string procNameStr = processName;
+        std::transform(procNameStr.begin(), procNameStr.end(), procNameStr.begin(), ::tolower);
+
+        if ((consoleWnd != NULL && foregroundWnd == consoleWnd) || 
+            foregroundPid == GetCurrentProcessId() || 
+            procNameStr.find("cmd.exe") != std::string::npos ||
+            procNameStr.find("powershell.exe") != std::string::npos ||
+            procNameStr.find("pwsh.exe") != std::string::npos ||
+            procNameStr.find("windowsterminal.exe") != std::string::npos ||
+            procNameStr.find("conhost.exe") != std::string::npos) {
+            return "Error: Cannot execute GUI typing into the CLI terminal itself. Return responses directly as conversational text.";
+        }
+    }
+
+    if (action == "type") {
         std::string text = effective_args.value("text", "");
         for (char c : text) {
             SHORT vk = VkKeyScan(c);
@@ -223,7 +260,7 @@ std::string GuiTool::execute(const nlohmann::json& args) {
         int ms = effective_args.value("ms", 1000);
         std::this_thread::sleep_for(std::chrono::milliseconds(ms));
         return "Slept for " + std::to_string(ms) + " ms.";
-    } else if (action == "clipboard" || action == "get_clipboard") {
+    } else if (action == "clipboard" || action == "get_clipboard" || action == "read_clipboard") {
         std::string clip_text = get_clipboard_text();
         return clip_text.empty() ? "Clipboard is empty." : clip_text;
     }

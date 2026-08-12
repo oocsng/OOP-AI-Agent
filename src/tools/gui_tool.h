@@ -9,7 +9,7 @@ class GuiTool : public Tool {
 public:
     [[nodiscard]] std::string name() const override { return "gui_tool"; }
     [[nodiscard]] std::string description() const override {
-        return "Perform GUI automation actions: action='screenshot', action='click' (x, y), action='type' (text), action='key' (key: 'enter', 'ctrl+c', 'ctrl+a'), action='sleep' (ms), action='clipboard'";
+        return "Perform GUI automation actions on the OS. DO NOT use this tool to chat or reply to the user! Use Final Answer for chatting. action='screenshot', action='click' (x, y), action='type' (text to type in external app), action='key', action='sleep' (ms), action='clipboard'";
     }
     std::string execute(const nlohmann::json& args) override;
     [[nodiscard]] nlohmann::json parameters_schema() const override {
@@ -23,7 +23,7 @@ public:
                 }},
                 {"x", {{"type", "integer"}, {"description", "X pixel coordinate for click action"}}},
                 {"y", {{"type", "integer"}, {"description", "Y pixel coordinate for click action"}}},
-                {"text", {{"type", "string"}, {"description", "Text string to type"}}},
+                {"text", {{"type", "string"}, {"description", "Text string to type into an external GUI app. NEVER use this to reply to the user."}}},
                 {"key", {{"type", "string"}, {"description", "Key name to press, e.g. 'enter', 'ctrl+c', 'ctrl+a'"}}},
                 {"ms", {{"type", "integer"}, {"description", "Milliseconds to sleep"}}}
             }},

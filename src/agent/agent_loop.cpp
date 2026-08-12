@@ -4,6 +4,10 @@
 #include <iostream>
 #include "utils/time_utils.hpp"
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 namespace agent {
 
 std::string AgentLoop::build_system_prompt(const std::string& user_prompt) {
@@ -23,7 +27,9 @@ std::string AgentLoop::build_system_prompt(const std::string& user_prompt) {
                   "MANDATORY TOOL EXECUTION RULES:\n"
                   "1. If the task requires regex pattern extraction, you MUST call 'regex_extractor_tool' (with 'text' and 'pattern' arguments).\n"
                   "2. If the task requires calculation, web search, file read/write, or memory storage, you MUST execute the corresponding tool ('calculator', 'web_search', 'read_file', 'write_file', 'memory_save', 'memory_search').\n"
-                  "3. NEVER skip calling the requested tool. Always execute the tool first, inspect the Tool Result, and only then provide the Final Answer.\n\n"
+                  "3. NEVER skip calling the requested tool. Always execute the tool first, inspect the Tool Result, and only then provide the Final Answer.\n"
+                  "4. CRITICAL: DO NOT use `gui_tool` (action `type` or `key_press`) to send text messages, greetings, or conversational answers to the user. General chat and answers MUST be returned directly as standard text without calling any tools.\n"
+                  "5. The `gui_tool` is STRICTLY reserved for GUI automation tasks on external desktop or browser applications.\n\n"
                   "When you have finished executing all required tools, respond with:\n"
                   "Thought: <final summary reasoning>\n"
                   "Final Answer: <your final answer to the user>\n";
@@ -77,6 +83,13 @@ ParsedAction AgentLoop::parse_llm_response(const std::string& response_text) {
             action.tool_name.erase(action.tool_name.find_last_not_of(" \t\r\n`") + 1);
 
             std::string input_str = response_text.substr(input_pos + 13);
+            
+            // Truncate if LLM chained multiple actions
+            size_t next_thought = input_str.find("\nThought:");
+            if (next_thought != std::string::npos) input_str = input_str.substr(0, next_thought);
+            size_t next_action = input_str.find("\nAction:");
+            if (next_action != std::string::npos) input_str = input_str.substr(0, next_action);
+
             input_str.erase(0, input_str.find_first_not_of(" \t\r\n"));
             input_str.erase(input_str.find_last_not_of(" \t\r\n") + 1);
 
@@ -140,6 +153,10 @@ LLMResponse AgentLoop::think(const std::vector<Message>& history, const LLMConfi
 }
 
 std::string AgentLoop::act(const std::string& tool_name, const nlohmann::json& tool_args) {
+    std::string args_str = tool_args.dump();
+    if (args_str.find("Action:") != std::string::npos || args_str.find("Action Input:") != std::string::npos) {
+        return "Error: Chained actions detected in tool arguments. You MUST execute EXACTLY ONE tool per turn and wait for the observation. Do NOT output 'Action:' inside the arguments.";
+    }
     if (!tool_registry_) {
         return "Error: ToolRegistry is not set in AgentLoop.";
     }
@@ -156,10 +173,11 @@ Trajectory AgentLoop::run(const std::string& task_id, const std::string& user_pr
     auto start_time = std::chrono::high_resolution_clock::now();
     loop_detector_.reset();
 
-    std::vector<Message> history;
-    std::string system_prompt = build_system_prompt(user_prompt);
-    history.push_back({.role = "system", .content = system_prompt, .images = {}});
-    history.push_back({.role = "user", .content = user_prompt, .images = {}});
+    if (history_.empty()) {
+        std::string system_prompt = build_system_prompt(user_prompt);
+        history_.push_back({.role = "system", .content = system_prompt, .images = {}});
+    }
+    history_.push_back({.role = "user", .content = user_prompt, .images = {}});
 
     for (std::size_t step_idx = 1; step_idx <= max_steps_; ++step_idx) {
         auto step_start = std::chrono::high_resolution_clock::now();
@@ -170,7 +188,7 @@ Trajectory AgentLoop::run(const std::string& task_id, const std::string& user_pr
 
         LLMResponse llm_resp;
         try {
-            llm_resp = think(history, config);
+            llm_resp = think(history_, config);
         } catch (const std::exception& e) {
             current_step.thought = "LLM Communication Error: " + std::string(e.what());
             current_step.tool_result = "Execution stopped due to LLM error.";
@@ -183,6 +201,34 @@ Trajectory AgentLoop::run(const std::string& task_id, const std::string& user_pr
         trajectory.total_tokens += llm_resp.tokens_used;
 
         ParsedAction action = parse_llm_response(llm_resp.content);
+        
+        // LAYER 3: Intercept gui_tool conversational attempts
+        bool is_pure_chat = (user_prompt.length() < 100 && (
+            user_prompt.find("hello") != std::string::npos || 
+            user_prompt.find("hi") != std::string::npos || 
+            user_prompt.find("how are") != std::string::npos));
+
+        bool is_terminal_focused = false;
+#if defined(_WIN32)
+        if (GetConsoleWindow() != NULL && GetConsoleWindow() == GetForegroundWindow()) {
+            is_terminal_focused = true;
+        }
+#endif
+
+        if (is_interactive_cli_ && is_terminal_focused && is_pure_chat) {
+            if (!action.is_final_answer && action.tool_name == "gui_tool" && 
+                action.tool_args.is_object() && action.tool_args.value("action", "") == "type") {
+                std::string text = action.tool_args.value("text", "");
+                if (!text.empty()) {
+                    action.is_final_answer = true;
+                    action.final_answer = text;
+                    action.tool_name = "";
+                    action.tool_args = nlohmann::json();
+                    action.thought += " (Intercepted gui_tool typing as direct response)";
+                }
+            }
+        }
+
         current_step.thought = action.thought;
         if (action.is_final_answer) {
             current_step.action = {{"type", "final_answer"}, {"tool", ""}, {"args", action.final_answer}};
@@ -197,6 +243,8 @@ Trajectory AgentLoop::run(const std::string& task_id, const std::string& user_pr
 
             trajectory.steps.push_back(current_step);
             if (step_hook_) step_hook_(current_step);
+
+            history_.push_back({.role = "assistant", .content = llm_resp.content, .images = {}});
 
             trajectory.success = true;
             break;
@@ -230,8 +278,8 @@ Trajectory AgentLoop::run(const std::string& task_id, const std::string& user_pr
         if (step_hook_) step_hook_(current_step);
 
         // Observe: add assistant response and tool output to history
-        history.push_back({.role = "assistant", .content = llm_resp.content, .images = {}});
-        history.push_back({.role = "tool", .content = "Tool Result: " + tool_output, .images = {}});
+        history_.push_back({.role = "assistant", .content = llm_resp.content, .images = {}});
+        history_.push_back({.role = "tool", .content = "Tool Result: " + tool_output, .images = {}});
     }
 
     auto total_end = std::chrono::high_resolution_clock::now();
