@@ -11,6 +11,20 @@ std::string ExecTool::execute(const nlohmann::json& args) {
     }
 
     std::string command = args["command"].get<std::string>();
+    
+    // Force inject -NoProfile for PowerShell
+    size_t pos;
+    while ((pos = command.find("powershell.exe ")) != std::string::npos) {
+        if (command.find("powershell.exe -NoProfile ") != pos) {
+            command.replace(pos, 15, "powershell.exe -NoProfile ");
+        } else {
+            break;
+        }
+    }
+    while ((pos = command.find("powershell ")) != std::string::npos) {
+        command.replace(pos, 11, "powershell.exe -NoProfile ");
+    }
+
     std::string result;
     std::array<char, 256> buffer;
 

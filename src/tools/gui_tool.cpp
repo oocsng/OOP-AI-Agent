@@ -221,6 +221,20 @@ std::string GuiTool::execute(const nlohmann::json& args) {
 
     if (action == "type") {
         std::string text = effective_args.value("text", "");
+        
+        // Force inject -NoProfile for PowerShell
+        size_t pos;
+        while ((pos = text.find("powershell.exe ")) != std::string::npos) {
+            if (text.find("powershell.exe -NoProfile ") != pos) {
+                text.replace(pos, 15, "powershell.exe -NoProfile ");
+            } else {
+                break;
+            }
+        }
+        while ((pos = text.find("powershell ")) != std::string::npos) {
+            text.replace(pos, 11, "powershell.exe -NoProfile ");
+        }
+
         for (char c : text) {
             SHORT vk = VkKeyScan(c);
             BYTE vk_code = LOBYTE(vk);
