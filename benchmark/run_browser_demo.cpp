@@ -145,7 +145,7 @@ std::string sanitize_google_results(const std::string& raw) {
 
 int main() {
     std::cout << Color::CYAN << "==========================================================" << Color::RESET << std::endl;
-    std::cout << Color::CYAN << " 🌐 BROWSER AUTOMATION DEMO (GUI AGENT & OS INTEGRATION)" << Color::RESET << std::endl;
+    std::cout << Color::CYAN << " === BROWSER AUTOMATION DEMO (GUI AGENT & OS INTEGRATION) ===" << Color::RESET << std::endl;
     std::cout << Color::CYAN << "==========================================================" << Color::RESET << std::endl;
 
     // Load task definition from benchmark/tasks.json
@@ -205,7 +205,9 @@ int main() {
                 return "Error: You cannot finish yet. You must complete the GUI sequence (type, enter, sleep, ctrl+a, ctrl+c, read_clipboard) and use write_file to save the results.";
             }
             if (tool_name == "write_file") {
-                if (tool_args.value("path", "") != "outputs/browser/browser_result.txt") {
+                std::string path_arg = tool_args.value("path", "");
+                if (path_arg.find("outputs/browser/browser_result.txt") == std::string::npos && 
+                    path_arg.find("outputs\\\\browser\\\\browser_result.txt") == std::string::npos) {
                     return "Error: You are only allowed to write to 'outputs/browser/browser_result.txt'. Try again.";
                 }
                 has_written_file = true;
@@ -263,6 +265,12 @@ int main() {
         return 1;
     }
     config.timeout_seconds = 10;
+
+    // Pre-flight Health Check
+    if (!client->ping(config.base_url, 3)) {
+        print_llm_unreachable_error(config.base_url);
+        return 1;
+    }
 
     Trajectory traj;
     bool live_llm_success = false;
@@ -348,7 +356,7 @@ int main() {
 
     // Verify output file content
     std::cout << Color::CYAN << "\n==========================================================" << Color::RESET << std::endl;
-    std::cout << Color::CYAN << " 📄 EXTRACTED RESULT IN 'outputs/browser/browser_result.txt':" << Color::RESET << std::endl;
+    std::cout << Color::CYAN << " [OUTPUT] EXTRACTED RESULT IN 'outputs/browser/browser_result.txt':" << Color::RESET << std::endl;
     std::cout << Color::CYAN << "==========================================================" << Color::RESET << std::endl;
 
     std::string read_out = registry->execute_tool("read_file", {{"path", "outputs/browser/browser_result.txt"}});
@@ -358,6 +366,6 @@ int main() {
 
     std::cout << Color::BOLD << read_out << Color::RESET << "\n" << std::endl;
 
-    std::cout << Color::GREEN << "✔ Browser Automation Demo completed successfully!" << Color::RESET << std::endl;
+    std::cout << Color::GREEN << "[OK] Browser Automation Demo completed successfully!" << Color::RESET << std::endl;
     return 0;
 }

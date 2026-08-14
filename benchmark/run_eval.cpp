@@ -71,6 +71,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    auto client_check = std::make_shared<agent::OllamaClient>();
+    if (!client_check->ping(config.base_url, 3)) {
+        agent::print_llm_unreachable_error(config.base_url);
+        return 1;
+    }
+
     std::println("Using LLM Base URL : {}", config.base_url);
     std::println("Using LLM Model    : {}", config.model_name);
 

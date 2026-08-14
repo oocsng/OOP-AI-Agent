@@ -61,6 +61,11 @@ void run_interactive_chat() {
         std::cerr << "Example: $env:LLM_BASE_URL=\"http://localhost:11434\"; $env:LLM_MODEL=\"qwen2.5:7b\"\n";
         return;
     }
+
+    if (!client->ping(config.base_url, 3)) {
+        agent::print_llm_unreachable_error(config.base_url);
+        return;
+    }
     
     std::cout << "[INFO] Using Base URL: " << config.base_url << "\n";
     std::cout << "[INFO] Using Model: " << config.model_name << "\n";
