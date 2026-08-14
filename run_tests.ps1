@@ -7,10 +7,10 @@ foreach ($test in $tests) {
     Write-Host "`n>>> Running $($test.Name)..." -ForegroundColor Yellow
     & $test.FullName
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "[X] FAILED: $($test.Name) exited with code $LASTEXITCODE" -ForegroundColor Red
+        Write-Host "[FAIL] FAILED: $($test.Name) exited with code $LASTEXITCODE" -ForegroundColor Red
         $failed++
     } else {
-        Write-Host "[V] PASSED: $($test.Name)" -ForegroundColor Green
+        Write-Host "[PASS] PASSED: $($test.Name)" -ForegroundColor Green
     }
 }
 
