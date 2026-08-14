@@ -52,18 +52,34 @@ std::string WriteFileTool::execute(const nlohmann::json& args) {
 
     if (args.contains("path") && args["path"].is_string()) {
         path_str = args["path"].get<std::string>();
+    } else if (args.contains("filepath") && args["filepath"].is_string()) {
+        path_str = args["filepath"].get<std::string>();
+    } else if (args.contains("file_path") && args["file_path"].is_string()) {
+        path_str = args["file_path"].get<std::string>();
     } else if (args.contains("filename") && args["filename"].is_string()) {
         path_str = args["filename"].get<std::string>();
     } else if (args.contains("file") && args["file"].is_string()) {
         path_str = args["file"].get<std::string>();
+    } else if (args.contains("target") && args["target"].is_string()) {
+        path_str = args["target"].get<std::string>();
     }
 
-    if (args.contains("content") && args["content"].is_string()) {
-        content_str = args["content"].get<std::string>();
-    } else if (args.contains("text") && args["text"].is_string()) {
-        content_str = args["text"].get<std::string>();
-    } else if (args.contains("data") && args["data"].is_string()) {
-        content_str = args["data"].get<std::string>();
+    if (args.contains("content")) {
+        content_str = args["content"].is_string() ? args["content"].get<std::string>() : args["content"].dump();
+    } else if (args.contains("summary")) {
+        content_str = args["summary"].is_string() ? args["summary"].get<std::string>() : args["summary"].dump();
+    } else if (args.contains("text")) {
+        content_str = args["text"].is_string() ? args["text"].get<std::string>() : args["text"].dump();
+    } else if (args.contains("data")) {
+        content_str = args["data"].is_string() ? args["data"].get<std::string>() : args["data"].dump();
+    } else if (args.contains("contents")) {
+        content_str = args["contents"].is_string() ? args["contents"].get<std::string>() : args["contents"].dump();
+    } else if (args.contains("body")) {
+        content_str = args["body"].is_string() ? args["body"].get<std::string>() : args["body"].dump();
+    } else if (args.contains("value")) {
+        content_str = args["value"].is_string() ? args["value"].get<std::string>() : args["value"].dump();
+    } else if (args.contains("result")) {
+        content_str = args["result"].is_string() ? args["result"].get<std::string>() : args["result"].dump();
     }
 
     if (path_str.empty() || content_str.empty()) {
@@ -72,8 +88,13 @@ std::string WriteFileTool::execute(const nlohmann::json& args) {
 
     try {
         std::filesystem::path file_path = path_str;
-        if (file_path.has_parent_path() && !std::filesystem::exists(file_path.parent_path())) {
-            std::filesystem::create_directories(file_path.parent_path());
+        std::filesystem::path p(file_path);
+        if (p.has_parent_path()) {
+            std::error_code ec;
+            std::filesystem::create_directories(p.parent_path(), ec);
+            if (ec) {
+                return "Error: Failed to create directories - " + ec.message();
+            }
         }
 
         std::ofstream file(file_path);
