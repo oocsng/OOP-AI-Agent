@@ -10,12 +10,6 @@ out/
 *.sqlite
 *.log
 .env
-cmake_out.txt
-cmakelog.txt
-out.txt
-out_simple.txt
-sys_report.txt
-browser_result.txt
 *.db
 *.bmp
 *.bin
@@ -24,9 +18,5 @@ browser_result.txt
 .vscode/
 *.png
 trajectories/
-AGENTS.md
-cpp23_info.txt
-AI_Agent_Coding_Tasks.md
-GIT_COMMIT_PLAN.md
-GEMINI.md
 *.txt
+*.md
