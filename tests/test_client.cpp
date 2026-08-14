@@ -63,10 +63,17 @@ void test_base64_encoding() {
     std::filesystem::remove(test_file);
 }
 
+void test_ping_health_check() {
+    OllamaClient client;
+    bool reached = client.ping("http://localhost:59999", 1);
+    TEST_ASSERT(!reached, "Ping to offline/invalid port should return false");
+}
+
 int main() {
     TestSuite suite("LLM CLIENT MODULE");
     suite.run("Config & Exceptions", test_config_and_exceptions);
     suite.run("Offline Connection Failure", test_offline_connection_failure);
+    suite.run("Ping Health Check", test_ping_health_check);
     suite.run("Base64 Encoding", test_base64_encoding);
     return suite.print_summary();
 }

@@ -70,11 +70,26 @@ class JSONParseException : public LLMException {
       : LLMException("JSON Parse Error: " + msg) {}
 };
 
+inline void print_llm_unreachable_error(const std::string& base_url) {
+  std::cerr << "\n==========================================================\n";
+  std::cerr << "[CRITICAL ERROR] LLM Server Unreachable!\n";
+  std::cerr << "Tried to connect to: " << base_url << "\n";
+  std::cerr << "The tests/app cannot proceed. Please ensure:\n";
+  std::cerr << " 1. If running locally, the Ollama app is open and running.\n";
+  std::cerr << " 2. If using Colab/Remote, your $env:LLM_BASE_URL is correct and the server is awake.\n";
+  std::cerr << "==========================================================\n\n";
+}
+
 class LLMClient {
  public:
   virtual ~LLMClient() = default;
   virtual LLMResponse chat(const std::vector<Message>& history,
                            const LLMConfig& config) = 0;
+  virtual bool ping(const std::string& base_url = "", int timeout_seconds = 3) {
+    (void)base_url;
+    (void)timeout_seconds;
+    return true;
+  }
 };
 
 }  // namespace agent

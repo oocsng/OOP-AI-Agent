@@ -158,4 +158,46 @@ LLMResponse OllamaClient::chat(const std::vector<Message>& history, const LLMCon
     }
 }
 
+bool OllamaClient::ping(const std::string& base_url, int timeout_seconds) {
+    std::string url = base_url;
+    if (url.empty()) {
+        const char* env_url = std::getenv("LLM_BASE_URL");
+        url = (env_url && env_url[0] != '\0') ? env_url : "http://localhost:11434";
+    }
+
+    if (url.ends_with("/api/chat")) {
+        url = url.substr(0, url.length() - 9);
+    } else if (url.ends_with("/v1/chat/completions")) {
+        url = url.substr(0, url.length() - 19);
+    }
+    while (!url.empty() && url.back() == '/') {
+        url.pop_back();
+    }
+    std::string ping_endpoint = url + "/api/tags";
+
+    CURL* raw_curl = curl_easy_init();
+    if (!raw_curl) {
+        return false;
+    }
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl(raw_curl, curl_easy_cleanup);
+
+    std::string response_body;
+    curl_easy_setopt(curl.get(), CURLOPT_URL, ping_endpoint.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_HTTPGET, 1L);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, curl_write_callback);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &response_body);
+    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, static_cast<long>(timeout_seconds));
+    curl_easy_setopt(curl.get(), CURLOPT_CONNECTTIMEOUT, static_cast<long>(timeout_seconds));
+    curl_easy_setopt(curl.get(), CURLOPT_NOSIGNAL, 1L);
+
+    CURLcode res = curl_easy_perform(curl.get());
+    if (res != CURLE_OK) {
+        return false;
+    }
+
+    long http_code = 0;
+    curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
+    return (http_code >= 200 && http_code < 400);
+}
+
 } // namespace agent
