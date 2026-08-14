@@ -225,7 +225,24 @@ std::string GuiTool::execute(const nlohmann::json& args) {
     if (action == "type") {
         std::string text = effective_args.value("text", "");
         
-        std::string cmd = "powershell.exe -NoProfile -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('" + text + "')\" 2>&1";
+        std::string escaped_text;
+        for (char c : text) {
+            if (c == '+' || c == '^' || c == '%' || c == '~' || c == '(' || c == ')' || c == '{' || c == '}') {
+                escaped_text += "{";
+                escaped_text += c;
+                escaped_text += "}";
+            } else {
+                escaped_text += c;
+            }
+        }
+        
+        size_t pos = 0;
+        while ((pos = escaped_text.find("'", pos)) != std::string::npos) {
+            escaped_text.replace(pos, 1, "''");
+            pos += 2;
+        }
+        
+        std::string cmd = "powershell.exe -NoProfile -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('" + escaped_text + "')\" 2>&1";
         
         std::string result;
         std::array<char, 256> buffer;
