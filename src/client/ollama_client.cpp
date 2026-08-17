@@ -105,7 +105,8 @@ LLMResponse OllamaClient::chat(const std::vector<Message>& history, const LLMCon
     curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
     curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, curl_write_callback);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &response_body);
-    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, static_cast<long>(config.timeout_seconds));
+    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, static_cast<long>(std::max(120, config.timeout_seconds)));
+    curl_easy_setopt(curl.get(), CURLOPT_CONNECTTIMEOUT, 30L);
 
     CURLcode res = curl_easy_perform(curl.get());
     long http_code = 0;

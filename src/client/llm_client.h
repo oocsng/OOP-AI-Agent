@@ -33,7 +33,7 @@ struct LLMConfig {
   }()};
   double temperature{0.2};
   int max_tokens{2048};
-  int timeout_seconds{60};
+  int timeout_seconds{120};
 };
 
 struct LLMResponse {
