@@ -86,7 +86,9 @@ set(TEST_NAMES
     test_skill_loader
     test_agent_loop
     test_evaluators
-    test_bonus_features
+    test_bonus_gui
+    test_bonus_vector_memory
+    test_bonus_multi_agent
 )
 
 foreach(test_name ${TEST_NAMES})

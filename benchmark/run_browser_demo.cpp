@@ -42,108 +42,26 @@ namespace Color {
     const char* BOLD    = "\033[1m";
 }
 
-#include <sstream>
-#include <cctype>
 
 std::string sanitize_google_results(const std::string& raw) {
-    std::string clean = raw;
-    
-    // 1. Aggressive Header Truncation
-    std::vector<std::string> start_anchors = {
-        "Thông tin tổng quan do AI tạo", "AI Overview"
-    };
-    size_t start_pos = std::string::npos;
-    for (const auto& anchor : start_anchors) {
-        size_t pos = clean.find(anchor);
-        if (pos != std::string::npos && (start_pos == std::string::npos || pos < start_pos)) {
-            start_pos = pos + anchor.length();
-        }
-    }
-    
-    if (start_pos != std::string::npos) {
-        size_t next_nl = clean.find('\n', start_pos);
-        if (next_nl != std::string::npos) {
-            clean = clean.substr(next_nl + 1);
-        } else {
-            clean = clean.substr(start_pos);
-        }
-    }
-
-    // 2. Footer Noise Truncation
-    std::vector<std::string> end_anchors = {
-        "Mọi người cũng tìm kiếm", "People also ask", "Hiển thị thêm", "Wikipedia", "Trợ giúp", "Quyền riêng tư"
-    };
-    size_t end_pos = std::string::npos;
-    for (const auto& anchor : end_anchors) {
-        size_t pos = clean.find(anchor);
-        if (pos != std::string::npos && (end_pos == std::string::npos || pos < end_pos)) {
-            end_pos = pos;
-        }
-    }
-    if (end_pos != std::string::npos) {
-        clean = clean.substr(0, end_pos);
-    }
-
-    // 3. Line-by-Line Filtering (UI buttons, domains, citations)
-    std::istringstream iss(clean);
-    std::string line;
-    std::string filtered_content = "";
-    
-    std::vector<std::string> ui_buttons = {
-        "Bỏ qua để đến phần nội dung chính", "Hỗ trợ truy cập", "Chế độ AI", 
-        "Tất cả", "Mua sắm", "Hình ảnh", "Tin tức", "Video ngắn", "Thêm", "Công cụ",
-        "C++26 features", "Tìm kiếm", "Đăng nhập"
-    };
-
-    while (std::getline(iss, line)) {
-        std::string trimmed = line;
-        if (trimmed.empty()) continue;
-        
-        size_t first = trimmed.find_first_not_of(" \t\r\n");
-        if (first == std::string::npos) continue;
-        size_t last = trimmed.find_last_not_of(" \t\r\n");
-        trimmed = trimmed.substr(first, (last - first + 1));
-        
-        // Match or contains UI button
-        bool is_ui_button = false;
-        for (const auto& btn : ui_buttons) {
-            if (trimmed == btn || trimmed.find(btn) != std::string::npos) {
-                is_ui_button = true;
-                break;
-            }
-        }
-        if (is_ui_button) continue;
-
-        // Domain endings
-        if (trimmed.length() >= 4 && (
-            trimmed.compare(trimmed.length() - 4, 4, ".com") == 0 ||
-            trimmed.compare(trimmed.length() - 4, 4, ".org") == 0 ||
-            trimmed.compare(trimmed.length() - 4, 4, ".net") == 0 ||
-            trimmed.compare(trimmed.length() - 3, 3, ".vn") == 0
-        )) continue;
-
-        // Citation counters (+1, +2)
-        if (trimmed.length() >= 2 && trimmed[0] == '+') {
-            bool is_number = true;
-            for (size_t i = 1; i < trimmed.length(); ++i) {
-                if (!std::isdigit(static_cast<unsigned char>(trimmed[i]))) {
-                    is_number = false;
-                    break;
-                }
-            }
-            if (is_number) continue;
-        }
-
-        filtered_content += trimmed + "\n";
-    }
-
-    if (filtered_content.length() < 20) {
-        return raw.substr(0, std::min<size_t>(raw.length(), 1000)) + "\n...[truncated]";
-    }
-    return filtered_content;
+    // Delegate to the canonical structural filter in GuiTool.
+    return GuiTool::filter_clipboard_content(raw);
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    bool enable_fallback = false;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--help" || arg == "-h") {
+            std::cout << "Usage: run_browser_demo [OPTIONS]\n"
+                      << "  --enable-fallback (-f)  Run scripted fallback pipeline if LLM offline\n"
+                      << "  --help (-h)             Show this help\n\n"
+                      << "Environment variables: LLM_BASE_URL, LLM_MODEL\n";
+            return 0;
+        } else if (arg == "--enable-fallback" || arg == "--direct" || arg == "-f") {
+            enable_fallback = true;
+        }
+    }
     std::cout << Color::CYAN << "==========================================================" << Color::RESET << std::endl;
     std::cout << Color::CYAN << " === BROWSER AUTOMATION DEMO (GUI AGENT & OS INTEGRATION) ===" << Color::RESET << std::endl;
     std::cout << Color::CYAN << "==========================================================" << Color::RESET << std::endl;
@@ -264,7 +182,7 @@ int main() {
         std::cerr << "[ERROR] LLM_BASE_URL and LLM_MODEL environment variables must be set.\n";
         return 1;
     }
-    config.timeout_seconds = 10;
+    config.timeout_seconds = 120;
 
     // Pre-flight Health Check
     if (!client->ping(config.base_url, 3)) {
@@ -304,6 +222,12 @@ int main() {
 
     // Fallback / direct verification execution pipeline if offline or demonstration mode
     if (!live_llm_success) {
+        if (!enable_fallback) {
+            std::cout << Color::YELLOW << "\n[INFO] Live LLM ReAct loop was not completed." << Color::RESET << std::endl;
+            std::cout << Color::YELLOW << "To run the direct scripted fallback demonstration pipeline, run with: --enable-fallback" << Color::RESET << std::endl;
+            return 1;
+        }
+
         if (!browser_launched) {
             std::cout << Color::YELLOW << "\n[EXEC] Step 1: Launching Web Browser..." << Color::RESET << std::endl;
 #ifdef _WIN32

@@ -1,47 +1,32 @@
 #include "tool_registry.h"
 #include <stdexcept>
+#include <cctype>
 
 namespace agent {
-
-void ToolRegistry::register_tool(std::shared_ptr<Tool> tool) {
-    if (!tool) return;
-    tools_[tool->name()] = tool;
-}
 
 static std::string normalize_name(std::string_view name) {
     std::string norm;
     norm.reserve(name.length());
     for (char c : name) {
-        if (c == '-') {
-            norm.push_back('_');
-        } else {
-            norm.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-        }
+        norm.push_back(c == '-' ? '_' : static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
     }
     return norm;
 }
 
 std::shared_ptr<Tool> ToolRegistry::get_tool(const std::string& name) const {
-    auto it = tools_.find(name);
-    if (it != tools_.end()) {
-        return it->second;
-    }
-    
+    auto it = items_.find(name);
+    if (it != items_.end()) return it->second;
+
     std::string norm = normalize_name(name);
-    for (const auto& [t_name, tool] : tools_) {
-        std::string norm_t = normalize_name(t_name);
-        if (norm_t == norm) {
-            return tool;
-        }
+    for (const auto& [t_name, tool] : items_) {
+        if (normalize_name(t_name) == norm) return tool;
     }
 
+    // Also try stripping trailing "_tool" suffix
     if (norm.length() > 5 && norm.substr(norm.length() - 5) == "_tool") {
         std::string stripped = norm.substr(0, norm.length() - 5);
-        for (const auto& [t_name, tool] : tools_) {
-            std::string norm_t = normalize_name(t_name);
-            if (norm_t == stripped) {
-                return tool;
-            }
+        for (const auto& [t_name, tool] : items_) {
+            if (normalize_name(t_name) == stripped) return tool;
         }
     }
     return nullptr;
@@ -67,13 +52,7 @@ void ToolRegistry::clear_policies() {
 }
 
 bool ToolRegistry::is_tool_allowed(const std::string& tool_name) const {
-    if (deny_list_.contains(tool_name)) {
-        return false;
-    }
-    if (use_allow_list_) {
-        return allow_list_.contains(tool_name);
-    }
-    return true;
+    return is_allowed(tool_name);
 }
 
 std::string ToolRegistry::execute_tool(const std::string& tool_name, const nlohmann::json& args) {
@@ -94,8 +73,8 @@ std::string ToolRegistry::execute_tool(const std::string& tool_name, const nlohm
 
 std::string ToolRegistry::get_tools_schema_json() const {
     nlohmann::json schema_array = nlohmann::json::array();
-    for (const auto& [name, tool] : tools_) {
-        if (is_tool_allowed(name)) {
+    for (const auto& [name, tool] : items_) {
+        if (is_allowed(name)) {
             nlohmann::json tool_info;
             tool_info["name"] = tool->name();
             tool_info["description"] = tool->description();
@@ -107,13 +86,7 @@ std::string ToolRegistry::get_tools_schema_json() const {
 }
 
 std::vector<std::string> ToolRegistry::get_available_tool_names() const {
-    std::vector<std::string> names;
-    for (const auto& [name, tool] : tools_) {
-        if (is_tool_allowed(name)) {
-            names.push_back(name);
-        }
-    }
-    return names;
+    return get_item_names();
 }
 
 } // namespace agent

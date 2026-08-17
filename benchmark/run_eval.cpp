@@ -48,7 +48,15 @@ int main(int argc, char* argv[]) {
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if (arg == "--enable-gui") {
+        if (arg == "--help" || arg == "-h") {
+            std::println("Usage: run_eval [OPTIONS] [tasks_file]");
+            std::println("  --enable-gui           Enable GUI automation task");
+            std::println("  --base-url=URL          LLM server base URL");
+            std::println("  --model=MODEL           LLM model name");
+            std::println("  tasks_file              Path to JSON tasks file (default: benchmark/tasks.json)");
+            std::println("\nEnvironment variables: LLM_BASE_URL, LLM_MODEL");
+            return 0;
+        } else if (arg == "--enable-gui") {
             enable_gui = true;
         } else if (arg.rfind("--base-url=", 0) == 0) {
             config.base_url = arg.substr(11);
@@ -58,6 +66,8 @@ int main(int argc, char* argv[]) {
             config.model_name = arg.substr(8);
         } else if (arg == "--model" && i + 1 < argc) {
             config.model_name = argv[++i];
+        } else if (arg.rfind("--timeout=", 0) == 0) {
+            config.timeout_seconds = std::stoi(arg.substr(10));
         } else {
             tasks_file = arg;
         }

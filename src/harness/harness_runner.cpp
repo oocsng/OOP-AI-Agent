@@ -21,6 +21,10 @@ void HarnessRunner::set_evaluators(std::unique_ptr<Evaluator> keyword_eval,
     if (functional_eval) functional_evaluator_ = std::move(functional_eval);
 }
 
+void HarnessRunner::set_environment(std::unique_ptr<Environment> env) {
+    environment_ = std::move(env);
+}
+
 TaskRunSummary HarnessRunner::run_task(const TaskSpec& spec, const LLMConfig& config) {
     TaskRunSummary summary;
     summary.spec = spec;
@@ -30,6 +34,9 @@ TaskRunSummary HarnessRunner::run_task(const TaskSpec& spec, const LLMConfig& co
         summary.trajectory.success = false;
         return summary;
     }
+
+    // Environment setup (Observer Pattern: harness injects hook)
+    if (environment_) environment_->setup();
 
     // Attach Observer step hook
     agent_loop_->set_step_hook([&spec](const Step& step) {
@@ -51,6 +58,9 @@ TaskRunSummary HarnessRunner::run_task(const TaskSpec& spec, const LLMConfig& co
 
     // Save JSON trajectory file
     save_trajectory_json(summary.trajectory, spec, summary.keyword_eval, summary.functional_eval);
+
+    // Environment teardown
+    if (environment_) environment_->teardown();
 
     return summary;
 }

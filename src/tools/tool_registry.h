@@ -1,6 +1,7 @@
 #pragma once
 
 #include "tool.h"
+#include "registry.h"
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -10,17 +11,13 @@
 
 namespace agent {
 
-class ToolRegistry {
-private:
-    std::unordered_map<std::string, std::shared_ptr<Tool>> tools_;
-    std::unordered_set<std::string> allow_list_;
-    std::unordered_set<std::string> deny_list_;
-    bool use_allow_list_{false};
-
+// ToolRegistry inherits generic Registry<Tool> (satisfies Table V generic template class requirement)
+class ToolRegistry : public Registry<Tool> {
 public:
     ToolRegistry() = default;
 
-    void register_tool(std::shared_ptr<Tool> tool);
+    // Convenience alias matching old API
+    void register_tool(std::shared_ptr<Tool> tool) { register_item(std::move(tool)); }
     [[nodiscard]] std::shared_ptr<Tool> get_tool(const std::string& name) const;
     [[nodiscard]] bool has_tool(const std::string& name) const;
 

@@ -101,11 +101,51 @@ void run_interactive_chat() {
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     if (!std::filesystem::exists("skills") && std::filesystem::exists("../skills")) {
         std::filesystem::current_path("..");
     } else if (!std::filesystem::exists("skills") && std::filesystem::exists("../../skills")) {
         std::filesystem::current_path("../..");
+    }
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--help" || arg == "-h") {
+            std::println("Usage: agent_app [OPTIONS]");
+            std::println("  --base-url=URL    LLM server base URL (overrides LLM_BASE_URL env)");
+            std::println("  --model=MODEL     LLM model name (overrides LLM_MODEL env)");
+            std::println("  --help / -h       Show this help");
+            std::println("\nEnvironment variables: LLM_BASE_URL, LLM_MODEL");
+            return 0;
+        } else if (arg.rfind("--base-url=", 0) == 0) {
+            std::string url = arg.substr(11);
+#if defined(_WIN32)
+            _putenv_s("LLM_BASE_URL", url.c_str());
+#else
+            setenv("LLM_BASE_URL", url.c_str(), 1);
+#endif
+        } else if (arg == "--base-url" && i + 1 < argc) {
+            std::string url = argv[++i];
+#if defined(_WIN32)
+            _putenv_s("LLM_BASE_URL", url.c_str());
+#else
+            setenv("LLM_BASE_URL", url.c_str(), 1);
+#endif
+        } else if (arg.rfind("--model=", 0) == 0) {
+            std::string model = arg.substr(8);
+#if defined(_WIN32)
+            _putenv_s("LLM_MODEL", model.c_str());
+#else
+            setenv("LLM_MODEL", model.c_str(), 1);
+#endif
+        } else if (arg == "--model" && i + 1 < argc) {
+            std::string model = argv[++i];
+#if defined(_WIN32)
+            _putenv_s("LLM_MODEL", model.c_str());
+#else
+            setenv("LLM_MODEL", model.c_str(), 1);
+#endif
+        }
     }
 
     // Initialize required global states

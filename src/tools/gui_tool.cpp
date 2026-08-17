@@ -6,6 +6,8 @@
 #include <chrono>
 #include <regex>
 #include <algorithm>
+#include <string_view>
+#include <sstream>
 #include <memory>
 #include <array>
 #include <cstdio>
@@ -36,7 +38,18 @@ std::string GuiTool::encode_base64(const std::vector<unsigned char>& data) {
 
 std::string GuiTool::get_clipboard_text() {
 #ifdef _WIN32
-    if (!OpenClipboard(NULL)) {
+    // Target 4: Clipboard Sync Buffer (allow OS clipboard to settle)
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    bool opened = false;
+    for (int i = 0; i < 10; ++i) {
+        if (OpenClipboard(NULL)) {
+            opened = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    if (!opened) {
         return "Error: Unable to open clipboard.";
     }
     HANDLE hData = GetClipboardData(CF_UNICODETEXT);
@@ -66,19 +79,104 @@ std::string GuiTool::get_clipboard_text() {
 #endif
 }
 
+std::string GuiTool::filter_clipboard_content(const std::string& raw) {
+    auto count_words = [](std::string_view sv) -> size_t {
+        size_t count = 0;
+        bool in_word = false;
+        for (char c : sv) {
+            if (std::isspace(static_cast<unsigned char>(c))) { in_word = false; }
+            else if (!in_word) { in_word = true; ++count; }
+        }
+        return count;
+    };
+
+    auto ends_with_punctuation = [](std::string_view sv) -> bool {
+        if (sv.empty()) return false;
+        char last = sv.back();
+        return last == '.' || last == '?' || last == '!' || last == ':';
+    };
+
+    std::istringstream iss(raw);
+    std::string line;
+    std::string result;
+    int consecutive_empty = 0;
+
+    while (std::getline(iss, line)) {
+        std::string_view sv = line;
+        while (!sv.empty() && std::isspace(static_cast<unsigned char>(sv.front()))) sv.remove_prefix(1);
+        while (!sv.empty() && std::isspace(static_cast<unsigned char>(sv.back()))) sv.remove_suffix(1);
+
+        if (sv.empty()) {
+            if (consecutive_empty == 0) result += '\n';
+            ++consecutive_empty;
+            continue;
+        }
+        consecutive_empty = 0;
+
+        // Drop bare URL-only lines
+        if (sv.starts_with("http://") || sv.starts_with("https://")) continue;
+
+        // Drop citation counters e.g. "+2"
+        if (sv.starts_with("+") && sv.size() >= 2 &&
+            std::isdigit(static_cast<unsigned char>(sv[1]))) continue;
+
+        // Keep separator lines
+        if (sv.starts_with("---")) {
+            result.append(sv);
+            result += '\n';
+            continue;
+        }
+
+        // Drop short lines that don't form a sentence
+        if (count_words(sv) < 4 && !ends_with_punctuation(sv)) continue;
+
+        result.append(sv);
+        result += '\n';
+    }
+
+    while (!result.empty() && (result.back() == '\n' || result.back() == ' ')) result.pop_back();
+    if (!result.empty()) result += '\n';
+
+    return result.empty() ? raw : result;
+}
+
+#ifdef _WIN32
+struct HdcScreenGuard {
+    HDC hdc;
+    ~HdcScreenGuard() { if (hdc) ReleaseDC(NULL, hdc); }
+};
+struct HdcMemGuard {
+    HDC hdc;
+    ~HdcMemGuard() { if (hdc) DeleteDC(hdc); }
+};
+struct HbitmapGuard {
+    HBITMAP hbm;
+    ~HbitmapGuard() { if (hbm) DeleteObject(hbm); }
+};
+#endif
+
 std::string GuiTool::capture_screenshot(const std::string& output_path) {
 #ifdef _WIN32
     int w = GetSystemMetrics(SM_CXSCREEN);
     int h = GetSystemMetrics(SM_CYSCREEN);
-    HDC hdcScreen = GetDC(NULL);
-    HDC hdcMem = CreateCompatibleDC(hdcScreen);
-    HBITMAP hbmScreen = CreateCompatibleBitmap(hdcScreen, w, h);
-    HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmScreen);
-    BitBlt(hdcMem, 0, 0, w, h, hdcScreen, 0, 0, SRCCOPY);
-    SelectObject(hdcMem, hbmOld);
+    HDC raw_hdcScreen = GetDC(NULL);
+    if (!raw_hdcScreen) return "Error: Failed to get screen DC.";
+    HdcScreenGuard hdcScreenGuard{raw_hdcScreen};
+
+    HDC raw_hdcMem = CreateCompatibleDC(raw_hdcScreen);
+    if (!raw_hdcMem) return "Error: Failed to create memory DC.";
+    HdcMemGuard hdcMemGuard{raw_hdcMem};
+
+    HBITMAP raw_hbmScreen = CreateCompatibleBitmap(raw_hdcScreen, w, h);
+    if (!raw_hbmScreen) return "Error: Failed to create screen bitmap.";
+    HbitmapGuard hbmScreenGuard{raw_hbmScreen};
+
+    HBITMAP hbmOld = (HBITMAP)SelectObject(raw_hdcMem, raw_hbmScreen);
+    BitBlt(raw_hdcMem, 0, 0, w, h, raw_hdcScreen, 0, 0, SRCCOPY);
+    SelectObject(raw_hdcMem, hbmOld);
     
     BITMAP bmp;
-    GetObject(hbmScreen, sizeof(BITMAP), &bmp);
+    GetObject(raw_hbmScreen, sizeof(BITMAP), &bmp);
     BITMAPINFOHEADER bi;
     ZeroMemory(&bi, sizeof(bi));
     bi.biSize = sizeof(BITMAPINFOHEADER);
@@ -90,7 +188,7 @@ std::string GuiTool::capture_screenshot(const std::string& output_path) {
     
     DWORD dwBmpSize = ((bmp.bmWidth * bi.biBitCount + 31) / 32) * 4 * bmp.bmHeight;
     std::vector<unsigned char> pixels(dwBmpSize);
-    GetDIBits(hdcScreen, hbmScreen, 0, (UINT)bmp.bmHeight, pixels.data(), (BITMAPINFO*)&bi, DIB_RGB_COLORS);
+    GetDIBits(raw_hdcScreen, raw_hbmScreen, 0, (UINT)bmp.bmHeight, pixels.data(), (BITMAPINFO*)&bi, DIB_RGB_COLORS);
     
     BITMAPFILEHEADER bmfHeader;
     bmfHeader.bfOffBits = (DWORD)sizeof(BITMAPFILEHEADER) + (DWORD)sizeof(BITMAPINFOHEADER);
@@ -109,10 +207,6 @@ std::string GuiTool::capture_screenshot(const std::string& output_path) {
         file.write((const char*)&bi, sizeof(BITMAPINFOHEADER));
         file.write((const char*)pixels.data(), dwBmpSize);
     }
-    
-    DeleteObject(hbmScreen);
-    DeleteDC(hdcMem);
-    ReleaseDC(NULL, hdcScreen);
     
     return encode_base64(pixels);
 #else
@@ -224,44 +318,31 @@ std::string GuiTool::execute(const nlohmann::json& args) {
 
     if (action == "type") {
         std::string text = effective_args.value("text", "");
-        
-        std::string escaped_text;
-        for (char c : text) {
-            if (c == '+' || c == '^' || c == '%' || c == '~' || c == '(' || c == ')' || c == '{' || c == '}') {
-                escaped_text += "{";
-                escaped_text += c;
-                escaped_text += "}";
-            } else {
-                escaped_text += c;
-            }
-        }
-        
-        size_t pos = 0;
-        while ((pos = escaped_text.find("'", pos)) != std::string::npos) {
-            escaped_text.replace(pos, 1, "''");
-            pos += 2;
-        }
-        
-        std::string cmd = "powershell.exe -NoProfile -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('" + escaped_text + "')\" 2>&1";
-        
-        std::string result;
-        std::array<char, 256> buffer;
-#if defined(_WIN32)
-        std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd.c_str(), "r"), _pclose);
-#else
-        std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
-#endif
-        if (pipe) {
-            while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
-                result += buffer.data();
-            }
-        }
-        
-        if (!result.empty() && result.find("Exception") != std::string::npos) {
-            return result;
-        }
+#ifdef _WIN32
+        // Native Win32 SendInput with KEYEVENTF_UNICODE — no PowerShell, no permission issues
+        std::wstring wtext(text.begin(), text.end());
+        std::vector<INPUT> inputs;
+        inputs.reserve(wtext.size() * 2);
+        for (wchar_t wc : wtext) {
+            INPUT inp_down{};
+            inp_down.type = INPUT_KEYBOARD;
+            inp_down.ki.wVk = 0;
+            inp_down.ki.wScan = wc;
+            inp_down.ki.dwFlags = KEYEVENTF_UNICODE;
+            inputs.push_back(inp_down);
 
+            INPUT inp_up = inp_down;
+            inp_up.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+            inputs.push_back(inp_up);
+        }
+        if (!inputs.empty()) {
+            SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
+        }
         return "Typed: " + text;
+#else
+        (void)text;
+        return "Error: GUI type action supported on Windows only.";
+#endif
     } else if (action == "key") {
         std::string k = effective_args.value("key", "enter");
         if (k == "enter" || k == "Return") {
@@ -273,12 +354,14 @@ std::string GuiTool::execute(const nlohmann::json& args) {
             keybd_event('C', 0, 0, 0);
             keybd_event('C', 0, KEYEVENTF_KEYUP, 0);
             keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             return "Pressed key sequence: Ctrl+C";
         } else if (k == "ctrl+a" || k == "select_all") {
             keybd_event(VK_CONTROL, 0, 0, 0);
             keybd_event('A', 0, 0, 0);
             keybd_event('A', 0, KEYEVENTF_KEYUP, 0);
             keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             return "Pressed key sequence: Ctrl+A";
         }
         return "Pressed key: " + k;
@@ -288,7 +371,8 @@ std::string GuiTool::execute(const nlohmann::json& args) {
         return "Slept for " + std::to_string(ms) + " ms.";
     } else if (action == "clipboard" || action == "get_clipboard" || action == "read_clipboard") {
         std::string clip_text = get_clipboard_text();
-        return clip_text.empty() ? "Clipboard is empty." : clip_text;
+        if (clip_text.empty()) return "Clipboard is empty.";
+        return filter_clipboard_content(clip_text);
     }
     return "Error: Unknown GUI action '" + action + "'.";
 #else
