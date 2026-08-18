@@ -23,33 +23,31 @@ std::string MemorySaveTool::execute(const nlohmann::json& args) {
         return "Error: Missing string arguments 'key' and 'content'.";
     }
 
-    sqlite3* db = nullptr;
-    if (sqlite3_open(db_path_.c_str(), &db) != SQLITE_OK) {
-        std::string err = sqlite3_errmsg(db);
-        if (db) sqlite3_close(db);
+    sqlite3* raw_db = nullptr;
+    if (sqlite3_open(db_path_.c_str(), &raw_db) != SQLITE_OK) {
+        std::string err = raw_db ? sqlite3_errmsg(raw_db) : "Unknown error";
+        if (raw_db) sqlite3_close(raw_db);
         return "Error opening SQLite database: " + err;
     }
+    std::unique_ptr<sqlite3, decltype(&sqlite3_close)> db(raw_db, sqlite3_close);
 
-    init_db_schema(db);
+    init_db_schema(db.get());
 
     std::string key = args["key"].get<std::string>();
     std::string content = args["content"].get<std::string>();
 
     const char* sql = "INSERT INTO memory (key, content) VALUES (?, ?);";
-    sqlite3_stmt* stmt = nullptr;
+    sqlite3_stmt* raw_stmt = nullptr;
 
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        std::string err = sqlite3_errmsg(db);
-        sqlite3_close(db);
-        return "Error preparing SQLite statement: " + err;
+    if (sqlite3_prepare_v2(db.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) {
+        return "Error preparing SQLite statement: " + std::string(sqlite3_errmsg(db.get()));
     }
+    std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> stmt(raw_stmt, sqlite3_finalize);
 
-    sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, content.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 1, key.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 2, content.c_str(), -1, SQLITE_TRANSIENT);
 
-    int step_res = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
+    int step_res = sqlite3_step(stmt.get());
 
     if (step_res != SQLITE_DONE) {
         return "Error inserting fact into SQLite memory database.";
@@ -63,33 +61,33 @@ std::string MemorySearchTool::execute(const nlohmann::json& args) {
         return "Error: Missing string argument 'query'.";
     }
 
-    sqlite3* db = nullptr;
-    if (sqlite3_open(db_path_.c_str(), &db) != SQLITE_OK) {
-        std::string err = sqlite3_errmsg(db);
-        if (db) sqlite3_close(db);
+    sqlite3* raw_db = nullptr;
+    if (sqlite3_open(db_path_.c_str(), &raw_db) != SQLITE_OK) {
+        std::string err = raw_db ? sqlite3_errmsg(raw_db) : "Unknown error";
+        if (raw_db) sqlite3_close(raw_db);
         return "Error opening SQLite database: " + err;
     }
+    std::unique_ptr<sqlite3, decltype(&sqlite3_close)> db(raw_db, sqlite3_close);
 
-    init_db_schema(db);
+    init_db_schema(db.get());
 
     std::string query = "%" + args["query"].get<std::string>() + "%";
     const char* sql = "SELECT key, content, timestamp FROM memory WHERE key LIKE ? OR content LIKE ? ORDER BY id DESC LIMIT 10;";
-    sqlite3_stmt* stmt = nullptr;
+    sqlite3_stmt* raw_stmt = nullptr;
 
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        std::string err = sqlite3_errmsg(db);
-        sqlite3_close(db);
-        return "Error preparing SQLite search statement: " + err;
+    if (sqlite3_prepare_v2(db.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) {
+        return "Error preparing SQLite search statement: " + std::string(sqlite3_errmsg(db.get()));
     }
+    std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> stmt(raw_stmt, sqlite3_finalize);
 
-    sqlite3_bind_text(stmt, 1, query.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, query.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 1, query.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 2, query.c_str(), -1, SQLITE_TRANSIENT);
 
     nlohmann::json results = nlohmann::json::array();
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        const char* key = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-        const char* content = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        const char* ts = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+    while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+        const char* key = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0));
+        const char* content = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1));
+        const char* ts = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 2));
 
         nlohmann::json item;
         item["key"] = key ? key : "";
@@ -97,9 +95,6 @@ std::string MemorySearchTool::execute(const nlohmann::json& args) {
         item["timestamp"] = ts ? ts : "";
         results.push_back(item);
     }
-
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
 
     if (results.empty()) {
         return "No memory records found matching query.";
