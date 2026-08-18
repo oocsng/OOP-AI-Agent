@@ -34,6 +34,7 @@ public:
 public:
     static std::string encode_base64(const std::vector<unsigned char>& data);
     static std::string get_clipboard_text();
+    static std::string filter_clipboard_content(const std::string& raw);
 
 private:
     std::string capture_screenshot(const std::string& output_path);
