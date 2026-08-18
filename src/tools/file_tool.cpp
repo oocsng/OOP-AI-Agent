@@ -87,11 +87,14 @@ std::string WriteFileTool::execute(const nlohmann::json& args) {
     }
 
     try {
-        std::filesystem::path file_path = path_str;
-        std::filesystem::path p(file_path);
-        if (p.has_parent_path()) {
+        std::filesystem::path file_path = std::filesystem::path(path_str).lexically_normal();
+        if (file_path.filename() == "browser_result.txt" && file_path.parent_path().string().find("browser") == std::string::npos) {
+            file_path = std::filesystem::path("outputs") / "browser" / "browser_result.txt";
+        }
+
+        if (file_path.has_parent_path()) {
             std::error_code ec;
-            std::filesystem::create_directories(p.parent_path(), ec);
+            std::filesystem::create_directories(file_path.parent_path(), ec);
             if (ec) {
                 return "Error: Failed to create directories - " + ec.message();
             }
