@@ -217,21 +217,50 @@ classDiagram
         +evaluate(trajectory, spec) EvalResult
     }
 
-    class FunctionalEvaluator {
+    class VLMEvaluator {
+        -shared_ptr client_
         +evaluate(trajectory, spec) EvalResult
     }
 
     Evaluator <|-- KeywordEvaluator
     Evaluator <|-- FunctionalEvaluator
+    Evaluator <|-- VLMEvaluator
+
+    class Environment {
+        <<interface>>
+        +setup()*
+        +teardown()*
+        +get_working_directory()* string
+    }
+
+    class NativeEnvironment {
+        +setup()
+        +teardown()
+        +get_working_directory() string
+    }
+
+    class SandboxEnvironment {
+        -path sandbox_dir_
+        +setup()
+        +teardown()
+        +get_working_directory() string
+    }
+
+    Environment <|-- NativeEnvironment
+    Environment <|-- SandboxEnvironment
 
     class HarnessRunner {
         -shared_ptr agent_loop_
+        -unique_ptr keyword_evaluator_
+        -unique_ptr functional_evaluator_
+        -unique_ptr environment_
         -string output_dir_
         +run_task(spec, config) EvalSummary
     }
 
     HarnessRunner --> AgentLoop
     HarnessRunner --> Evaluator
+    HarnessRunner --> Environment
 
     class Trajectory {
         +string task_id
