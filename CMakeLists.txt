@@ -21,10 +21,6 @@ find_package(CURL REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(SQLite3 REQUIRED)
 
-# Include directories
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-
 # Core framework library sources
 file(GLOB_RECURSE CORE_SOURCES
     "src/agent/*.cpp"
@@ -33,30 +29,15 @@ file(GLOB_RECURSE CORE_SOURCES
     "src/tools/*.cpp"
 )
 
-# Executable 1: Main Application
-add_executable(agent_app src/main.cpp ${CORE_SOURCES})
+# Core static library
+add_library(oop_agent_core STATIC ${CORE_SOURCES})
 
-target_link_libraries(agent_app PRIVATE
-    CURL::libcurl
-    nlohmann_json::nlohmann_json
-    SQLite::SQLite3
-    gdi32
+target_include_directories(oop_agent_core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-# Executable 2: Benchmark Evaluation Runner
-add_executable(run_eval benchmark/run_eval.cpp ${CORE_SOURCES})
-
-target_link_libraries(run_eval PRIVATE
-    CURL::libcurl
-    nlohmann_json::nlohmann_json
-    SQLite::SQLite3
-    gdi32
-)
-
-# Executable 3: Browser Automation Demo Runner
-add_executable(run_browser_demo benchmark/run_browser_demo.cpp ${CORE_SOURCES})
-
-target_link_libraries(run_browser_demo PRIVATE
+target_link_libraries(oop_agent_core PUBLIC
     CURL::libcurl
     nlohmann_json::nlohmann_json
     SQLite::SQLite3
@@ -64,17 +45,23 @@ target_link_libraries(run_browser_demo PRIVATE
 )
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_link_libraries(agent_app PRIVATE stdc++exp)
-    target_link_libraries(run_eval PRIVATE stdc++exp)
-    target_link_libraries(run_browser_demo PRIVATE stdc++exp)
-    target_compile_options(agent_app PRIVATE -Wall -Wextra -Wpedantic -std=c++26)
-    target_compile_options(run_eval PRIVATE -Wall -Wextra -Wpedantic -std=c++26)
-    target_compile_options(run_browser_demo PRIVATE -Wall -Wextra -Wpedantic -std=c++26)
+    target_link_libraries(oop_agent_core PUBLIC stdc++exp)
+    target_compile_options(oop_agent_core PUBLIC -Wall -Wextra -Wpedantic -std=c++26)
 elseif(MSVC)
-    target_compile_options(agent_app PRIVATE /W4 /std:c++latest)
-    target_compile_options(run_eval PRIVATE /W4 /std:c++latest)
-    target_compile_options(run_browser_demo PRIVATE /W4 /std:c++latest)
+    target_compile_options(oop_agent_core PUBLIC /W4 /std:c++latest)
 endif()
+
+# Executable 1: Main Application
+add_executable(agent_app src/main.cpp)
+target_link_libraries(agent_app PRIVATE oop_agent_core)
+
+# Executable 2: Benchmark Evaluation Runner
+add_executable(run_eval benchmark/run_eval.cpp)
+target_link_libraries(run_eval PRIVATE oop_agent_core)
+
+# Executable 3: Browser Automation Demo Runner
+add_executable(run_browser_demo benchmark/run_browser_demo.cpp)
+target_link_libraries(run_browser_demo PRIVATE oop_agent_core)
 
 # Enable Testing & Register Unit Test Executables with CTest
 enable_testing()
@@ -92,19 +79,8 @@ set(TEST_NAMES
 )
 
 foreach(test_name ${TEST_NAMES})
-    add_executable(${test_name} tests/${test_name}.cpp ${CORE_SOURCES})
-    target_link_libraries(${test_name} PRIVATE
-        CURL::libcurl
-        nlohmann_json::nlohmann_json
-        SQLite::SQLite3
-        gdi32
-    )
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        target_link_libraries(${test_name} PRIVATE stdc++exp)
-        target_compile_options(${test_name} PRIVATE -Wall -Wextra -Wpedantic -std=c++26)
-    elseif(MSVC)
-        target_compile_options(${test_name} PRIVATE /W4 /std:c++latest)
-    endif()
+    add_executable(${test_name} tests/${test_name}.cpp)
+    target_link_libraries(${test_name} PRIVATE oop_agent_core)
     add_test(NAME ${test_name} COMMAND ${test_name})
 endforeach()
 
