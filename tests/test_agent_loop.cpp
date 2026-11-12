@@ -1,8 +1,10 @@
 #include "agent/agent_loop.h"
 #include "tools/calculator_tool.h"
 #include "tools/custom_tool3.h"
+#include "common/cpp_features.h"
 #include "test_framework.h"
 #include <iostream>
+#include <limits>
 
 using namespace agent;
 
@@ -83,11 +85,43 @@ void test_agent_loop_execution_and_step_hook() {
     TEST_ASSERT(recorded_steps[1].step_id == 2, "Step 2 ID mismatch");
     TEST_ASSERT(recorded_steps[1].action.dump().find("\"30\"") != std::string::npos, "Step 2 action mismatch");
     TEST_ASSERT(recorded_steps[1].tool_result == "30", "Step 2 tool result mismatch");
+    TEST_ASSERT(traj.total_tokens == 30, "Total tokens mismatch");
+}
+
+void test_cpp26_saturation_arithmetic() {
+    int max_int = std::numeric_limits<int>::max();
+    int min_int = std::numeric_limits<int>::min();
+
+    // Saturated addition on signed int
+    int sat_add = agent::cpp26::safe_add(max_int - 10, 20);
+    TEST_ASSERT(sat_add == max_int, "safe_add should saturate at int max");
+
+    int normal_add = agent::cpp26::safe_add(15, 25);
+    TEST_ASSERT(normal_add == 40, "safe_add normal addition mismatch");
+
+    // Saturated subtraction on signed int
+    int sat_sub = agent::cpp26::safe_sub(min_int + 10, 20);
+    TEST_ASSERT(sat_sub == min_int, "safe_sub should saturate at int min");
+
+    int normal_sub = agent::cpp26::safe_sub(50, 20);
+    TEST_ASSERT(normal_sub == 30, "safe_sub normal subtraction mismatch");
+
+    // Mixed type addition (size_t + int) matching agent_loop usage
+    std::size_t base_tokens = 100;
+    int added_tokens = 50;
+    std::size_t mixed_add = agent::cpp26::safe_add(base_tokens, added_tokens);
+    TEST_ASSERT(mixed_add == 150, "safe_add mixed-type addition mismatch");
+
+    // Saturated addition on unsigned size_t
+    std::size_t max_size = std::numeric_limits<std::size_t>::max();
+    std::size_t sat_size_add = agent::cpp26::safe_add(max_size - 5, std::size_t{10});
+    TEST_ASSERT(sat_size_add == max_size, "safe_add should saturate at size_t max");
 }
 
 int main() {
     TestSuite suite("AGENT LOOP MODULE");
     suite.run("ReAct Parsing", test_react_parsing);
     suite.run("Agent Loop Execution", test_agent_loop_execution_and_step_hook);
+    suite.run("C++26 Saturation Arithmetic", test_cpp26_saturation_arithmetic);
     return suite.print_summary();
 }

@@ -5,6 +5,7 @@
 #include <sstream>
 
 #include "utils/time_utils.hpp"
+#include "common/cpp_features.h"
 
 namespace agent {
 
@@ -304,7 +305,7 @@ Trajectory AgentLoop::run(const std::string& task_id,
     }
 
     current_step.tokens_used = llm_resp.tokens_used;
-    trajectory.total_tokens += llm_resp.tokens_used;
+    trajectory.total_tokens = agent::cpp26::safe_add(trajectory.total_tokens, llm_resp.tokens_used);
 
     ParsedAction action = parse_llm_response(llm_resp.content);
 
