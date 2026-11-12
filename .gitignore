@@ -19,6 +19,5 @@ out/
 *.png
 trajectories/
 *.txt
-*.md
 *.pdf
 *.docx
