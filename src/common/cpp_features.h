@@ -146,10 +146,17 @@ constexpr T safe_add(T a, U b) noexcept {
             }
         }
     } else if constexpr (std::is_signed_v<T> && std::is_unsigned_v<U>) {
-        if (b > static_cast<std::make_unsigned_t<T>>(std::numeric_limits<T>::max())) {
+        using UnsignedT = std::make_unsigned_t<T>;
+        using WideU = std::common_type_t<UnsignedT, U>;
+        WideU dist_to_max = (a >= 0)
+            ? static_cast<WideU>(std::numeric_limits<T>::max() - a)
+            : static_cast<WideU>(std::numeric_limits<T>::max()) +
+                  static_cast<WideU>(-(a + 1)) + 1;
+        if (static_cast<WideU>(b) >= dist_to_max) {
             return std::numeric_limits<T>::max();
         }
-        return safe_add<T>(a, static_cast<T>(b));
+        return static_cast<T>(static_cast<UnsignedT>(
+            static_cast<WideU>(static_cast<UnsignedT>(a)) + static_cast<WideU>(b)));
     } else {
         if constexpr (sizeof(T) >= sizeof(U)) {
             return safe_add<T>(a, static_cast<T>(b));
@@ -172,19 +179,41 @@ template <std::integral T, std::integral U>
 requires (!std::is_same_v<T, U>)
 constexpr T safe_sub(T a, U b) noexcept {
     if constexpr (std::is_unsigned_v<T> && std::is_signed_v<U>) {
+        using UnsignedU = std::make_unsigned_t<U>;
         if (b < 0) {
-            using UnsignedU = std::make_unsigned_t<U>;
             UnsignedU abs_b = static_cast<UnsignedU>(-(b + 1)) + 1;
-            return safe_add<T>(a, static_cast<T>(abs_b));
+            if constexpr (sizeof(T) >= sizeof(UnsignedU)) {
+                return safe_add<T>(a, static_cast<T>(abs_b));
+            } else {
+                UnsignedU res = safe_add<UnsignedU>(static_cast<UnsignedU>(a), abs_b);
+                if (res > static_cast<UnsignedU>(std::numeric_limits<T>::max())) {
+                    return std::numeric_limits<T>::max();
+                }
+                return static_cast<T>(res);
+            }
         } else {
-            using UnsignedU = std::make_unsigned_t<U>;
-            return safe_sub<T>(a, static_cast<T>(static_cast<UnsignedU>(b)));
+            UnsignedU ub = static_cast<UnsignedU>(b);
+            if constexpr (sizeof(T) >= sizeof(UnsignedU)) {
+                return safe_sub<T>(a, static_cast<T>(ub));
+            } else {
+                if (ub > static_cast<UnsignedU>(a)) {
+                    return 0;
+                }
+                return static_cast<T>(static_cast<UnsignedU>(a) - ub);
+            }
         }
     } else if constexpr (std::is_signed_v<T> && std::is_unsigned_v<U>) {
-        if (b > static_cast<std::make_unsigned_t<T>>(std::numeric_limits<T>::max())) {
+        using UnsignedT = std::make_unsigned_t<T>;
+        using WideU = std::common_type_t<UnsignedT, U>;
+        WideU dist_to_min = (a >= 0)
+            ? static_cast<WideU>(a) +
+                  static_cast<WideU>(std::numeric_limits<T>::max()) + 1
+            : static_cast<WideU>(a - std::numeric_limits<T>::min());
+        if (static_cast<WideU>(b) >= dist_to_min) {
             return std::numeric_limits<T>::min();
         }
-        return safe_sub<T>(a, static_cast<T>(b));
+        return static_cast<T>(static_cast<UnsignedT>(
+            static_cast<WideU>(static_cast<UnsignedT>(a)) - static_cast<WideU>(b)));
     } else {
         if constexpr (sizeof(T) >= sizeof(U)) {
             return safe_sub<T>(a, static_cast<T>(b));

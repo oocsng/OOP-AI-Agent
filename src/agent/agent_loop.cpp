@@ -266,6 +266,11 @@ std::string AgentLoop::act(const std::string& tool_name,
   return tool_registry_->execute_tool(tool_name, tool_args);
 }
 
+void AgentLoop::clear_history() {
+  history_.clear();
+  loop_detector_.reset();
+}
+
 Trajectory AgentLoop::run(const std::string& task_id,
                           const std::string& user_prompt,
                           const LLMConfig& config) {
@@ -277,6 +282,9 @@ Trajectory AgentLoop::run(const std::string& task_id,
 
   auto start_time = std::chrono::high_resolution_clock::now();
   loop_detector_.reset();
+  if (!is_interactive_cli_) {
+    history_.clear();
+  }
 
   if (history_.empty()) {
     std::string system_prompt = build_system_prompt(user_prompt);
@@ -371,6 +379,11 @@ Trajectory AgentLoop::run(const std::string& task_id,
 
     // Observe: add assistant response and tool output to history
     std::string obs_content = sanitize_and_format_observation(tool_output);
+    if (loop_check.status == LoopStatus::Warning) {
+      obs_content += "\n[LOOP DETECTOR WARNING] " + loop_check.message +
+                     " Do not repeat the same tool call with identical arguments; "
+                     "change parameters, pick a different tool, or provide Final Answer.";
+    }
     history_.push_back(
         {.role = "assistant", .content = llm_resp.content, .images = {}});
     history_.push_back({.role = "tool", .content = obs_content, .images = {}});

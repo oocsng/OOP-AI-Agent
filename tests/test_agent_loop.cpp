@@ -1,8 +1,11 @@
 #include "agent/agent_loop.h"
+#include "client/mock_llm_client.h"
 #include "tools/calculator_tool.h"
 #include "tools/custom_tool3.h"
 #include "common/cpp_features.h"
 #include "test_framework.h"
+#include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 
@@ -14,13 +17,13 @@ public:
     using AgentLoop::parse_llm_response;
 };
 
-class MockLLMClient : public LLMClient {
+class SequenceMockLLMClient : public LLMClient {
 private:
     std::vector<std::string> canned_responses_;
     size_t index_{0};
 
 public:
-    explicit MockLLMClient(std::vector<std::string> responses)
+    explicit SequenceMockLLMClient(std::vector<std::string> responses)
         : canned_responses_(std::move(responses)) {}
 
     LLMResponse chat(const std::vector<Message>& /*history*/, const LLMConfig& /*config*/) override {
@@ -61,7 +64,7 @@ void test_agent_loop_execution_and_step_hook() {
         "Thought: Calculated result.\nFinal Answer: 30"
     };
 
-    auto mock_client = std::make_shared<MockLLMClient>(mock_turns);
+    auto mock_client = std::make_shared<SequenceMockLLMClient>(mock_turns);
     AgentLoop loop(mock_client, registry, nullptr, /*max_steps=*/5);
 
     std::vector<Step> recorded_steps;
@@ -116,6 +119,109 @@ void test_cpp26_saturation_arithmetic() {
     std::size_t max_size = std::numeric_limits<std::size_t>::max();
     std::size_t sat_size_add = agent::cpp26::safe_add(max_size - 5, std::size_t{10});
     TEST_ASSERT(sat_size_add == max_size, "safe_add should saturate at size_t max");
+
+    // Narrow unsigned target with wide signed operand
+    std::uint8_t narrow_u_sub_neg = agent::cpp26::safe_sub(std::uint8_t{10}, -300);
+    TEST_ASSERT(narrow_u_sub_neg == 255, "uint8_t(10) - (-300) should saturate at 255");
+
+    std::uint8_t narrow_u_sub_pos = agent::cpp26::safe_sub(std::uint8_t{200}, 300);
+    TEST_ASSERT(narrow_u_sub_pos == 0, "uint8_t(200) - 300 should saturate at 0");
+
+    // Narrow signed target with wide unsigned operand where result fits in signed range
+    std::int8_t narrow_s_sub_u = agent::cpp26::safe_sub(std::int8_t{100}, std::uint32_t{150});
+    TEST_ASSERT(narrow_s_sub_u == -50, "int8_t(100) - uint32_t(150) should equal -50");
+
+    std::int8_t narrow_s_sub_u_sat = agent::cpp26::safe_sub(std::int8_t{100}, std::uint32_t{300});
+    TEST_ASSERT(narrow_s_sub_u_sat == -128, "int8_t(100) - uint32_t(300) should saturate at -128");
+
+    std::int8_t narrow_s_add_u = agent::cpp26::safe_add(std::int8_t{-100}, std::uint32_t{150});
+    TEST_ASSERT(narrow_s_add_u == 50, "int8_t(-100) + uint32_t(150) should equal 50");
+
+    std::int8_t narrow_s_add_u_sat = agent::cpp26::safe_add(std::int8_t{-100}, std::uint32_t{300});
+    TEST_ASSERT(narrow_s_add_u_sat == 127, "int8_t(-100) + uint32_t(300) should saturate at 127");
+}
+
+class HistoryRecordingClient : public LLMClient {
+public:
+    std::vector<std::vector<Message>> recorded_histories;
+    std::vector<std::string> canned_responses;
+    size_t index{0};
+
+    explicit HistoryRecordingClient(std::vector<std::string> responses = {})
+        : canned_responses(std::move(responses)) {}
+
+    LLMResponse chat(const std::vector<Message>& history, const LLMConfig& /*config*/) override {
+        recorded_histories.push_back(history);
+        if (index < canned_responses.size()) {
+            return LLMResponse{.content = canned_responses[index++], .raw_json = "", .tokens_used = 10};
+        }
+        return LLMResponse{.content = "Thought: Done.\nFinal Answer: ok", .raw_json = "", .tokens_used = 10};
+    }
+};
+
+class LongOutputTool : public Tool {
+public:
+    std::string name() const override { return "long_tool"; }
+    std::string description() const override { return "Returns >3000 chars for truncation testing."; }
+    nlohmann::json parameters_schema() const override { return nlohmann::json::object(); }
+    std::string execute(const nlohmann::json& /*args*/) override {
+        return std::string(3500, 'A');
+    }
+};
+
+void test_history_isolation_and_interactive_mode() {
+    auto spy = std::make_shared<HistoryRecordingClient>();
+    auto registry = std::make_shared<ToolRegistry>();
+    auto skill_loader = std::make_shared<SkillLoader>();
+    if (std::filesystem::exists("skills")) {
+        skill_loader->load_skills("skills");
+    } else if (std::filesystem::exists("../skills")) {
+        skill_loader->load_skills("../skills");
+    }
+
+    AgentLoop loop(spy, registry, skill_loader, /*max_steps=*/5);
+    LLMConfig config;
+
+    loop.run("task_1", "Fix this cpp code bug", config);
+    loop.run("task_2", "Create a step plan for subtask", config);
+
+    TEST_ASSERT(spy->recorded_histories.size() == 2, "Should record 2 runs");
+    TEST_ASSERT(spy->recorded_histories[1].size() == 2, "Non-interactive run should reset history to system + user");
+    TEST_ASSERT(spy->recorded_histories[1][0].content.find("Task Planner") != std::string::npos,
+                "Task 2 system prompt should inject Task Planner skill");
+    TEST_ASSERT(spy->recorded_histories[1][0].content.find("Code Fixer") == std::string::npos,
+                "Task 2 system prompt should not retain Task 1 Code Fixer skill");
+
+    loop.set_interactive_cli(true);
+    loop.run("task_3", "Follow up question", config);
+    TEST_ASSERT(spy->recorded_histories[2].size() > 2, "Interactive CLI mode should retain previous history");
+
+    loop.clear_history();
+    loop.run("task_4", "Fresh interactive turn", config);
+    TEST_ASSERT(spy->recorded_histories[3].size() == 2, "clear_history() should reset interactive history");
+}
+
+void test_loop_warning_and_critical_stop_with_long_output() {
+    auto registry = std::make_shared<ToolRegistry>();
+    registry->register_tool(std::make_shared<LongOutputTool>());
+
+    std::string repeat_call = "Thought: call long_tool.\nAction: long_tool\nAction Input: {\"k\": 1}";
+    auto spy = std::make_shared<HistoryRecordingClient>(
+        std::vector<std::string>{repeat_call, repeat_call, repeat_call});
+
+    AgentLoop loop(spy, registry, nullptr, /*max_steps=*/5);
+    LLMConfig config;
+    Trajectory traj = loop.run("task_warn", "Run long tool", config);
+
+    TEST_ASSERT(traj.steps.size() == 3, "Should execute 2 steps and stop on step 3");
+    TEST_ASSERT(traj.steps[1].tool_result.size() == 3500, "Step 2 tool_result should preserve raw tool output");
+    TEST_ASSERT(spy->recorded_histories.size() == 3, "Should invoke chat 3 times");
+    TEST_ASSERT(spy->recorded_histories[2].back().content.find("[Output truncated to 3000 characters]") != std::string::npos,
+                "Long output should still be truncated");
+    TEST_ASSERT(spy->recorded_histories[2].back().content.find("[LOOP DETECTOR WARNING]") != std::string::npos,
+                "Loop warning must be appended after truncation");
+    TEST_ASSERT(traj.steps[2].tool_result.find("[LOOP DETECTOR STOP]") != std::string::npos,
+                "Step 3 should stop with LOOP DETECTOR STOP");
 }
 
 int main() {
@@ -123,5 +229,7 @@ int main() {
     suite.run("ReAct Parsing", test_react_parsing);
     suite.run("Agent Loop Execution", test_agent_loop_execution_and_step_hook);
     suite.run("C++26 Saturation Arithmetic", test_cpp26_saturation_arithmetic);
+    suite.run("History Isolation & Interactive Mode", test_history_isolation_and_interactive_mode);
+    suite.run("Loop Warning & Critical Stop With Long Output", test_loop_warning_and_critical_stop_with_long_output);
     return suite.print_summary();
 }

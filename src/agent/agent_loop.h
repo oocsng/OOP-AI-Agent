@@ -51,6 +51,7 @@ public:
     void set_step_hook(StepHook hook) { step_hook_ = std::move(hook); }
     void set_max_steps(std::size_t max_steps) { max_steps_ = max_steps; }
     void set_interactive_cli(bool v) { is_interactive_cli_ = v; }
+    void clear_history();
 
     // === TEMPLATE METHOD ===
     // Fixed skeleton of the ReAct algorithm loop
