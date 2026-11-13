@@ -17,6 +17,8 @@ Dự án Xây dựng Framework ReAct AI Agent bằng C++26, tích hợp với Ol
   * *Lưu ý quan trọng:* KHÔNG sử dụng `cmake` mặc định của MSYS2 vì sẽ gây lỗi sinh file Makefile. Hãy đảm bảo CMake bản native của Windows được thêm vào biến môi trường `PATH`.
 * **Thư viện phụ thuộc** (có thể cài qua MSYS2 UCRT64):
   * `pacman -S mingw-w64-ucrt-x86_64-curl`
+  * `pacman -S mingw-w64-ucrt-x86_64-openssl`
+  * `pacman -S mingw-w64-ucrt-x86_64-pkgconf`
   * `pacman -S mingw-w64-ucrt-x86_64-sqlite3`
   * `pacman -S mingw-w64-ucrt-x86_64-nlohmann-json`
 
@@ -34,13 +36,22 @@ Dự án này hỗ trợ cả mô hình chạy cục bộ (Ollama) và các dị
 Nếu không chạy được Ollama trên máy cá nhân, bạn có thể kết nối Agent với các máy chủ AI từ xa:
 - **Ngrok / Localtunnel (Kaggle/Colab)**: Chạy mô hình (ví dụ `gemma-2-9b-it`) trên đám mây và mở port bằng Ngrok.
 - **NVIDIA NIM / OpenRouter / Gemini**: Cấu hình Base URL tương ứng.
-- **Cách thiết lập**: Thay đổi Base URL và Model Name trong mã nguồn khi khởi tạo Client hoặc qua biến môi trường.
+- **Cách thiết lập**: Thiết lập qua biến môi trường (`LLM_BASE_URL`, `LLM_MODEL`), cờ CLI (`--base-url`, `--model`), hoặc cấu hình `agent::LLMConfig` truyền vào `OllamaClient::chat()`.
+  *Ví dụ PowerShell:*
+  ```powershell
+  $env:LLM_BASE_URL="https://your-ngrok-url.ngrok-free.app"
+  $env:LLM_MODEL="gemma2"
+  ```
   *Ví dụ C++:*
   ```cpp
-  // Chạy qua endpoint của Colab Ngrok thay vì localhost
-  OllamaClient client("https://your-ngrok-url.ngrok-free.app", "gemma2");
+  agent::LLMConfig config;
+  config.base_url = "https://your-ngrok-url.ngrok-free.app";
+  config.model_name = "gemma2";
+
+  agent::OllamaClient client;
+  auto response = client.chat(history, config);
   ```
-  *(Lưu ý: Nếu sử dụng API Key cho OpenRouter/Gemini, hãy thêm Header `Authorization: Bearer <KEY>` vào HTTP request của `OllamaClient`).*
+  *(Lưu ý: Khi sử dụng API Key cho OpenAI-compatible/OpenRouter/Gemini endpoint, thiết lập thêm biến môi trường `LLM_API_KEY`).*
 
 ### Bước 2: Tải mô hình LLM & Vector Embedding (Dành cho Local)
 Mở PowerShell / Command Prompt và chạy lệnh:
@@ -114,9 +125,13 @@ Write-Host "[OK] Build completed successfully." -ForegroundColor Green
 ## 4. HƯỚNG DẪN SỬ DỤNG VÀ KIỂM THỬ (TESTING & RUNNING)
 
 ### 4.1. Chạy Kiểm Thử Tự Động (Unit Tests)
-Sau khi biên dịch thành công, chạy bộ kiểm thử toàn diện của dự án. 
+Sau khi biên dịch thành công, chạy bộ kiểm thử toàn diện của dự án.
 
-**Cách 1 (Tiêu chuẩn):** Sử dụng script kiểm thử được cung cấp sẵn (khuyên dùng trên Windows):
+**Cách 1 (Tiêu chuẩn - CTest / PowerShell):** Chạy toàn bộ 9 test targets qua CTest hoặc script PowerShell:
+```powershell
+ctest --test-dir build --output-on-failure
+```
+Hoặc:
 ```powershell
 .\run_tests.ps1
 ```
@@ -136,20 +151,27 @@ Sau khi biên dịch thành công, chạy bộ kiểm thử toàn diện của d
 .\build\test_loop_detector.exe
 .\build\test_skill_loader.exe
 ```
-Hệ thống sẽ chạy qua các Unit Test (Ollama Client, Tools, ReAct Loop, v.v.) để đảm bảo 100% tính nguyên vẹn của mã nguồn.
+Hệ thống sẽ chạy qua các Unit Test (Ollama Client, Tools, ReAct Loop, v.v.) để đảm bảo tính toàn vẹn của mã nguồn.
 
-> **QUAN TRỌNG: Kiểm Thử Các Tính Năng Bonus (GUI, Vector Memory, Multi-Agent)**  
-> Cả 3 tính năng Bonus được gom chung vào một file executable duy nhất và **tách biệt hoàn toàn** khỏi bộ `ctest` và `unit_tests.exe` tiêu chuẩn.  
-> *Lý do*: Việc kiểm thử tự động giao diện (GUI Agent) thao tác trực tiếp lên Win32 API, chiếm quyền điều khiển chuột/bàn phím và mở cửa sổ thực tế. Việc cô lập này giữ cho các test tiêu chuẩn chạy ẩn (headless), nhanh chóng, và không gây loạn focus màn hình.  
-> **Cách chạy (Dành cho Graders/Người chấm điểm):**  
-> Chạy trực tiếp file thực thi độc lập để test toàn bộ các tính năng Bonus (GUI, Vector Memory, Multi-Agent):  
+> **Kiểm Thử Các Tính Năng Bonus (GUI, Vector Memory, Multi-Agent)**
+> 3 module Bonus được tách thành 3 file executable riêng biệt và đã được đăng ký trong `ctest` (cũng như chạy trong `.\run_tests.ps1`):
 > ```powershell
-> .\build\test_bonus_features.exe
+> .\build\test_bonus_gui.exe
+> .\build\test_bonus_vector_memory.exe
+> .\build\test_bonus_multi_agent.exe
 > ```
-> *(Hoặc `.\build\Release\test_bonus_features.exe` tùy vào trình biên dịch).*
+> *(Lưu ý: `test_bonus_gui.exe` gọi trực tiếp Win32 GUI API trên Windows).*
 
 ### 4.2. Chạy Đánh Giá Benchmark (`run_eval`)
-Chạy bộ tự động giải quyết 13 nhiệm vụ thực tế đa dạng (Simple, Medium, Hard, Bonus):
+**Chế độ Offline (`--mock`, không cần Ollama/Internet):**
+Chạy 10/13 task offline bằng `MockLLMClient` để kiểm tra luồng ReAct, tool execution, SQLite và functional assertions (tự động bỏ qua `task-med-02`, `task_bonus_vector`, và `task_bonus_gui`):
+```powershell
+.\build\run_eval.exe --mock
+```
+*(Hoặc thiết lập biến môi trường `$env:LLM_MOCK="1"`).*
+
+**Chế độ Live LLM (Ollama / Remote Server):**
+Chạy bộ đánh giá đầy đủ với mô hình LLM thực tế (hỗ trợ cờ `--enable-gui`, `--base-url=URL`, `--model=MODEL`):
 ```powershell
 $env:LLM_BASE_URL="http://localhost:11434"
 $env:LLM_MODEL="qwen2.5:7b"
@@ -182,11 +204,21 @@ $env:LLM_MODEL="qwen2.5:7b"
 ## 5. CẤU TRÚC THƯ MỤC DỰ ÁN (DIRECTORY STRUCTURE)
 
 ```text
-OOP AI Agents 2026/
+OOP-AI-Agent/
+├── .github/workflows/ci.yml
 ├── CMakeLists.txt
 ├── README.md
+├── run_tests.ps1
+├── version.txt
+├── include/utils/time_utils.hpp
 ├── src/
 │   ├── main.cpp
+│   ├── common/
+│   │   └── cpp_features.h
+│   ├── dto/
+│   │   ├── message.h
+│   │   ├── step.h
+│   │   └── trajectory.h
 │   ├── agent/
 │   │   ├── agent_loop.h / .cpp
 │   │   ├── loop_detector.h / .cpp
@@ -194,6 +226,7 @@ OOP AI Agents 2026/
 │   │   └── sub_agent_manager.h / .cpp
 │   ├── client/
 │   │   ├── llm_client.h
+│   │   ├── mock_llm_client.h / .cpp
 │   │   └── ollama_client.h / .cpp
 │   ├── tools/
 │   │   ├── tool.h
@@ -203,17 +236,20 @@ OOP AI Agents 2026/
 │   │   ├── exec_tool.h / .cpp
 │   │   ├── memory_tool.h / .cpp
 │   │   ├── web_tool.h / .cpp
+│   │   ├── sub_agent_tool.h / .cpp
 │   │   ├── custom_tool1.h / .cpp (DateTimeTool)
 │   │   ├── custom_tool2.h / .cpp (SystemInfoTool)
 │   │   ├── custom_tool3.h / .cpp (RegexExtractorTool)
 │   │   ├── gui_tool.h / .cpp
 │   │   └── vector_memory_tool.h / .cpp
 │   └── harness/
+│       ├── environment.h
+│       ├── evaluator.h
 │       ├── harness_runner.h / .cpp
 │       ├── trajectory.h / .cpp
-│       ├── evaluator.h
 │       ├── keyword_evaluator.h / .cpp
-│       └── functional_evaluator.h / .cpp
+│       ├── functional_evaluator.h / .cpp
+│       └── vlm_evaluator.h / .cpp
 ├── skills/
 │   ├── task_planner.md
 │   ├── error_recovery.md
@@ -223,7 +259,16 @@ OOP AI Agents 2026/
 │   ├── run_eval.cpp
 │   └── run_browser_demo.cpp
 ├── tests/
-│   └── (Unit tests for all components)
+│   ├── test_framework.h
+│   ├── test_client.cpp
+│   ├── test_tools.cpp
+│   ├── test_loop_detector.cpp
+│   ├── test_skill_loader.cpp
+│   ├── test_agent_loop.cpp
+│   ├── test_evaluators.cpp
+│   ├── test_bonus_gui.cpp
+│   ├── test_bonus_vector_memory.cpp
+│   └── test_bonus_multi_agent.cpp
 └── docs/
     ├── class_diagram.mmd / .png
     ├── sequence_diagram_agent.mmd / .png
