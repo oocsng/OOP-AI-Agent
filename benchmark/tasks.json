@@ -3,63 +3,63 @@
     "task_id": "task-sim-01",
     "prompt": "Calculate the result of expression (15 + 25) * 4.",
     "expected_keywords": ["calculator", "160"],
-    "test_command": "echo Task Simple 1 Verified",
+    "test_command": "",
     "category": "simple"
   },
   {
     "task_id": "task-sim-02",
     "prompt": "Write 'Hello AI Agent Framework 2026' into file 'outputs/benchmark/out_simple.txt'.",
     "expected_keywords": ["write_file", "outputs/benchmark/out_simple.txt"],
-    "test_command": "echo Task Simple 2 Verified",
+    "test_command": "powershell -NoProfile -Command \"$c = Get-Content 'outputs/benchmark/out_simple.txt' -Raw -ErrorAction Ignore; if ($c -match 'Hello AI Agent Framework 2026') { exit 0 } else { exit 1 }\"",
     "category": "simple"
   },
   {
     "task_id": "task-sim-03",
     "prompt": "Get current system time and timezone.",
     "expected_keywords": ["get_system_time", "timestamp"],
-    "test_command": "echo Task Simple 3 Verified",
+    "test_command": "",
     "category": "simple"
   },
   {
     "task_id": "task-sim-04",
     "prompt": "Call the tool 'system_info_tool' to check host system hardware CPU and RAM specifications (do not use exec).",
     "expected_keywords": ["system_info_tool", "cpu_threads"],
-    "test_command": "echo Task Simple 4 Verified",
+    "test_command": "",
     "category": "simple"
   },
   {
     "task_id": "task-med-01",
     "prompt": "Calculate (100 - 35) / 5 and save the result into memory with key 'calc_5'.",
     "expected_keywords": ["calculator", "13", "memory_save"],
-    "test_command": "echo Task Medium 1 Verified",
+    "test_command": "powershell -NoProfile -Command \"$sq = if (Get-Command sqlite3 -ErrorAction Ignore) { 'sqlite3' } else { 'C:/msys64/ucrt64/bin/sqlite3.exe' }; $q = 'SELECT content FROM memory WHERE key=''calc_5'';'; if ((& $sq memory.db $q) -match '13') { exit 0 } else { exit 1 }\"",
     "category": "medium"
   },
   {
     "task_id": "task-med-02",
     "prompt": "Search web for 'C++23 std::println' and save search summary to 'outputs/benchmark/cpp23_info.txt'.",
     "expected_keywords": ["web_search", "write_file", "outputs/benchmark/cpp23_info.txt"],
-    "test_command": "echo Task Medium 2 Verified",
+    "test_command": "powershell -NoProfile -Command \"$c = Get-Content 'outputs/benchmark/cpp23_info.txt' -Raw -ErrorAction Ignore; if ($c -and $c.Trim().Length -gt 0) { exit 0 } else { exit 1 }\"",
     "category": "medium"
   },
   {
     "task_id": "task-med-03",
     "prompt": "Read file 'version.txt' and extract date pattern YYYY-MM-DD using regex tool.",
     "expected_keywords": ["read_file", "regex_extractor_tool"],
-    "test_command": "echo Task Medium 3 Verified",
+    "test_command": "",
     "category": "medium"
   },
   {
     "task_id": "task-med-04",
     "prompt": "Save user preference 'theme=dark' in persistent memory and then query it back using memory_search.",
     "expected_keywords": ["memory_save", "memory_search", "theme"],
-    "test_command": "echo Task Medium 4 Verified",
+    "test_command": "powershell -NoProfile -Command \"$sq = if (Get-Command sqlite3 -ErrorAction Ignore) { 'sqlite3' } else { 'C:/msys64/ucrt64/bin/sqlite3.exe' }; $q = 'SELECT key || '' '' || content FROM memory WHERE (key || '' '' || content) LIKE ''%theme%'' AND (key || '' '' || content) LIKE ''%dark%'';'; if ((& $sq memory.db $q) -match 'dark') { exit 0 } else { exit 1 }\"",
     "category": "medium"
   },
   {
     "task_id": "task-hard-01",
     "prompt": "Try reading non-existent file 'non_existent.txt'. Upon error, recover by calculating 2^10 using the `calculator`. CRITICAL SEQUENCE: After getting the calculator result, you MUST explicitly call the `memory_save` tool with key 'fallback_val'. DO NOT output a `final_answer` or stop until you have received a successful confirmation from the `memory_save` tool.",
     "expected_keywords": ["read_file", "calculator", "1024", "memory_save"],
-    "test_command": "echo Task Hard 1 Verified",
+    "test_command": "powershell -NoProfile -Command \"$sq = if (Get-Command sqlite3 -ErrorAction Ignore) { 'sqlite3' } else { 'C:/msys64/ucrt64/bin/sqlite3.exe' }; $q = 'SELECT content FROM memory WHERE key=''fallback_val'';'; if ((& $sq memory.db $q) -match '1024') { exit 0 } else { exit 1 }\"",
     "category": "hard"
   },
   {
@@ -73,21 +73,21 @@
     "task_id": "task_bonus_vector",
     "prompt": "Save memory 'Apple is a fruit' into the vector database, then perform a vector search for 'fruit'. CRITICAL: You MUST include the exact word 'vector_memory' in your final answer.",
     "expected_keywords": ["vector_memory", "save", "search"],
-    "test_command": "echo Bonus Vector Passed",
+    "test_command": "powershell -NoProfile -Command \"$sq = if (Get-Command sqlite3 -ErrorAction Ignore) { 'sqlite3' } else { 'C:/msys64/ucrt64/bin/sqlite3.exe' }; $q = 'SELECT text FROM embeddings WHERE text LIKE ''%Apple is a fruit%'';'; if ((& $sq vector_memory.db $q) -match 'Apple') { exit 0 } else { exit 1 }\"",
     "category": "bonus"
   },
   {
     "task_id": "task_bonus_multi_agent",
     "prompt": "Spawn a sub-agent named worker1 and send it a message.",
     "expected_keywords": ["sub_agent", "spawn", "worker1"],
-    "test_command": "echo Bonus Multi-Agent Passed",
+    "test_command": "",
     "category": "bonus"
   },
   {
     "task_id": "task_bonus_gui",
     "prompt": "Take a screenshot of the desktop, then click at coordinates 10,10 to safely test GUI actions. CRITICAL: You MUST explicitly use the `gui_tool` with action 'screenshot' to take a screenshot, and then MUST use the `gui_tool` with action 'click' at x=10, y=10. Do not hallucinate the result without calling the tool.",
     "expected_keywords": ["gui_tool", "screenshot", "click"],
-    "test_command": "echo Bonus GUI Passed",
+    "test_command": "powershell -NoProfile -Command \"if ((Test-Path 'outputs/screen captures/screenshot.bmp') -and ((Get-Item 'outputs/screen captures/screenshot.bmp').Length -gt 0)) { exit 0 } else { exit 1 }\"",
     "category": "bonus"
   }
 ]

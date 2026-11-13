@@ -4,13 +4,17 @@
 #include <vector>
 #include <memory>
 #include <filesystem>
+#include <cstdlib>
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <chrono>
+#include <sqlite3.h>
 #include "utils/time_utils.hpp"
 
 #include "dto/trajectory.h"
+#include "common/cpp_features.h"
 #include "client/ollama_client.h"
+#include "client/mock_llm_client.h"
 #include "tools/tool_registry.h"
 #include "tools/exec_tool.h"
 #include "tools/file_tool.h"
@@ -30,6 +34,50 @@
 #include "harness/keyword_evaluator.h"
 #include "harness/functional_evaluator.h"
 
+namespace {
+
+void clean_benchmark_artifacts(bool clean_vector) {
+    std::error_code ec;
+    const char* files_to_remove[] = {
+        "outputs/benchmark/out_simple.txt",
+        "outputs/benchmark/cpp23_info.txt",
+        "outputs/benchmark/sys_report.txt",
+        "outputs/screen captures/screenshot.bmp"
+    };
+    for (const char* path : files_to_remove) {
+        std::filesystem::remove(path, ec);
+    }
+
+    if (std::filesystem::exists("memory.db", ec)) {
+        sqlite3* db = nullptr;
+        if (sqlite3_open("memory.db", &db) == SQLITE_OK && db != nullptr) {
+            sqlite3_exec(
+                db,
+                "DELETE FROM memory WHERE key IN ('calc_5', 'fallback_val') OR "
+                "((key || ' ' || content) LIKE '%theme%' AND (key || ' ' || content) LIKE '%dark%');",
+                nullptr, nullptr, nullptr);
+        }
+        if (db != nullptr) {
+            sqlite3_close(db);
+        }
+    }
+
+    if (clean_vector && std::filesystem::exists("vector_memory.db", ec)) {
+        sqlite3* vdb = nullptr;
+        if (sqlite3_open("vector_memory.db", &vdb) == SQLITE_OK && vdb != nullptr) {
+            sqlite3_exec(
+                vdb,
+                "DELETE FROM embeddings WHERE text LIKE '%Apple is a fruit%';",
+                nullptr, nullptr, nullptr);
+        }
+        if (vdb != nullptr) {
+            sqlite3_close(vdb);
+        }
+    }
+}
+
+} // namespace
+
 int main(int argc, char* argv[]) {
     // Auto-detect and fix current working directory if run from build/ or build/Release/
     if (!std::filesystem::exists("benchmark/tasks.json")) {
@@ -44,28 +92,44 @@ int main(int argc, char* argv[]) {
 
     std::string tasks_file = "benchmark/tasks.json";
     bool enable_gui = false;
+    bool use_mock = false;
+    if (const char* env_mock = std::getenv("LLM_MOCK")) {
+        std::string mock_val = env_mock;
+        if (mock_val == "1" || mock_val == "true") {
+            use_mock = true;
+        }
+    }
     agent::LLMConfig config;
+    bool has_explicit_url = (std::getenv("LLM_BASE_URL") != nullptr);
+    bool has_explicit_model = (std::getenv("LLM_MODEL") != nullptr);
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--help" || arg == "-h") {
             std::println("Usage: run_eval [OPTIONS] [tasks_file]");
             std::println("  --enable-gui           Enable GUI automation task");
+            std::println("  --mock                 Run deterministic offline suite with MockLLMClient");
             std::println("  --base-url=URL          LLM server base URL");
             std::println("  --model=MODEL           LLM model name");
             std::println("  tasks_file              Path to JSON tasks file (default: benchmark/tasks.json)");
-            std::println("\nEnvironment variables: LLM_BASE_URL, LLM_MODEL");
+            std::println("\nEnvironment variables: LLM_BASE_URL, LLM_MODEL, LLM_MOCK");
             return 0;
         } else if (arg == "--enable-gui") {
             enable_gui = true;
+        } else if (arg == "--mock") {
+            use_mock = true;
         } else if (arg.rfind("--base-url=", 0) == 0) {
             config.base_url = arg.substr(11);
+            has_explicit_url = true;
         } else if (arg == "--base-url" && i + 1 < argc) {
             config.base_url = argv[++i];
+            has_explicit_url = true;
         } else if (arg.rfind("--model=", 0) == 0) {
             config.model_name = arg.substr(8);
+            has_explicit_model = true;
         } else if (arg == "--model" && i + 1 < argc) {
             config.model_name = argv[++i];
+            has_explicit_model = true;
         } else if (arg.rfind("--timeout=", 0) == 0) {
             config.timeout_seconds = std::stoi(arg.substr(10));
         } else {
@@ -76,15 +140,20 @@ int main(int argc, char* argv[]) {
     if (config.base_url.empty() && std::getenv("LLM_BASE_URL")) config.base_url = std::getenv("LLM_BASE_URL");
     if (config.model_name.empty() && std::getenv("LLM_MODEL")) config.model_name = std::getenv("LLM_MODEL");
 
-    if (config.base_url.empty() || config.model_name.empty()) {
-        std::cerr << "Error: LLM_BASE_URL and LLM_MODEL environment variables or CLI flags must be set.\n";
-        return 1;
-    }
+    if (use_mock) {
+        if (config.base_url.empty() || !has_explicit_url) config.base_url = "mock://offline";
+        if (config.model_name.empty() || !has_explicit_model) config.model_name = "mock-llm";
+    } else {
+        if (config.base_url.empty() || config.model_name.empty()) {
+            std::cerr << "Error: LLM_BASE_URL and LLM_MODEL environment variables or CLI flags must be set.\n";
+            return 1;
+        }
 
-    auto client_check = std::make_shared<agent::OllamaClient>();
-    if (!client_check->ping(config.base_url, 3)) {
-        agent::print_llm_unreachable_error(config.base_url);
-        return 1;
+        auto client_check = std::make_shared<agent::OllamaClient>();
+        if (!client_check->ping(config.base_url, 3)) {
+            agent::print_llm_unreachable_error(config.base_url);
+            return 1;
+        }
     }
 
     std::println("Using LLM Base URL : {}", config.base_url);
@@ -114,6 +183,10 @@ int main(int argc, char* argv[]) {
             std::println("Skipping GUI task [{}] because --enable-gui was not provided.", spec.task_id);
             continue;
         }
+        if (use_mock && (spec.task_id == "task-med-02" || spec.task_id == "task_bonus_vector")) {
+            std::println("[MOCK] Skipping task [{}] (requires live external HTTP/embedding service).", spec.task_id);
+            continue;
+        }
         
         tasks.push_back(spec);
     }
@@ -121,7 +194,12 @@ int main(int argc, char* argv[]) {
     std::println("Loaded {} tasks from benchmark configuration.", tasks.size());
 
     // Setup Agent environment
-    auto client = std::make_shared<agent::OllamaClient>();
+    std::shared_ptr<agent::LLMClient> client;
+    if (use_mock) {
+        client = std::make_shared<agent::MockLLMClient>();
+    } else {
+        client = std::make_shared<agent::OllamaClient>();
+    }
     auto registry = std::make_shared<agent::ToolRegistry>();
     registry->register_tool(std::make_shared<agent::ExecTool>());
     registry->register_tool(std::make_shared<agent::ReadFileTool>());
@@ -156,21 +234,21 @@ int main(int argc, char* argv[]) {
     std::size_t total_tokens = 0;
     double total_time_ms = 0.0;
 
+    clean_benchmark_artifacts(!use_mock);
+
     for (const auto& task : tasks) {
         std::println("\n[{}] Running Task [{}] (Category: {}): {}", agent::utils::get_local_timestamp(), task.task_id, task.category, task.prompt);
         
         auto summary = runner.run_task(task, config);
 
-        total_tokens += summary.trajectory.total_tokens;
+        total_tokens = agent::cpp26::safe_add(total_tokens, summary.trajectory.total_tokens);
         total_time_ms += summary.trajectory.total_time_ms;
 
         bool success = true;
         if (!task.expected_keywords.empty()) {
             success = success && summary.keyword_eval.passed;
         }
-        if (!task.test_command.empty()) {
-            success = success && summary.functional_eval.passed;
-        }
+        success = success && summary.functional_eval.passed;
         if (success) passed_count++;
 
         std::println("[{}]  -> Result: {} | Tokens: {} | Latency: {:.2f}ms | Feedback: {} | Functional: {}",

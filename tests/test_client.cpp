@@ -108,6 +108,73 @@ void test_mock_llm_client() {
     history = {{"user", "Tell me a joke", {}}};
     resp = mock.chat(history, config);
     TEST_ASSERT(resp.content.find("Final Answer:") != std::string::npos, "Default prompt should trigger Final Answer");
+
+    // Multi-step benchmark routing - task-med-01
+    history = {{"user", "Calculate (100 - 35) / 5 and save the result into memory with key 'calc_5'.", {}}};
+    resp = mock.chat(history, config);
+    TEST_ASSERT(resp.content.find("Action: calculator") != std::string::npos, "task-med-01 step 1 should invoke calculator");
+    TEST_ASSERT(resp.content.find("(100 - 35) / 5") != std::string::npos, "task-med-01 step 1 should compute (100 - 35) / 5");
+    history.push_back({.role = "assistant", .content = resp.content, .images = {}});
+    history.push_back({.role = "tool", .content = "Tool Result: 13", .images = {}});
+    resp = mock.chat(history, config);
+    TEST_ASSERT(resp.content.find("Action: memory_save") != std::string::npos, "task-med-01 step 2 should invoke memory_save");
+    TEST_ASSERT(resp.content.find("calc_5") != std::string::npos && resp.content.find("13") != std::string::npos,
+                "task-med-01 step 2 should save key calc_5 with value 13");
+    history.push_back({.role = "assistant", .content = resp.content, .images = {}});
+    history.push_back({.role = "tool", .content = "Tool Result: Successfully saved fact into memory: [calc_5] -> 13", .images = {}});
+    resp = mock.chat(history, config);
+    TEST_ASSERT(resp.content.find("Final Answer:") != std::string::npos &&
+                    resp.content.find("13") != std::string::npos &&
+                    resp.content.find("memory_save") != std::string::npos,
+                "task-med-01 step 3 should finish with Final Answer containing 13 and memory_save");
+
+    // Multi-step benchmark routing - task-med-03
+    history = {{"user", "Read file 'version.txt' and extract date pattern YYYY-MM-DD using regex tool.", {}}};
+    resp = mock.chat(history, config);
+    TEST_ASSERT(resp.content.find("Action: read_file") != std::string::npos &&
+                    resp.content.find("version.txt") != std::string::npos,
+                "task-med-03 step 1 should read version.txt");
+    history.push_back({.role = "assistant", .content = resp.content, .images = {}});
+    history.push_back({.role = "tool", .content = "Tool Result: Release Date: 2026-11-13", .images = {}});
+    resp = mock.chat(history, config);
+    TEST_ASSERT(resp.content.find("Action: regex_extractor_tool") != std::string::npos,
+                "task-med-03 step 2 should invoke regex_extractor_tool");
+    history.push_back({.role = "assistant", .content = resp.content, .images = {}});
+    history.push_back({.role = "tool", .content = "Tool Result: {\"matches\":[\"2026-11-13\"]}", .images = {}});
+    resp = mock.chat(history, config);
+    TEST_ASSERT(resp.content.find("Final Answer:") != std::string::npos &&
+                    resp.content.find("regex_extractor_tool") != std::string::npos &&
+                    resp.content.find("2026-11-13") != std::string::npos,
+                "task-med-03 step 3 should finish with extracted date");
+}
+
+void test_url_normalization_and_timeout_config() {
+    TEST_ASSERT(OllamaClient::build_ping_url("http://localhost:11434/v1/chat/completions") ==
+                    "http://localhost:11434/api/tags",
+                "OpenAI chat suffix should normalize to /api/tags");
+    TEST_ASSERT(OllamaClient::build_ping_url("http://localhost:11434/v1/chat/completions/") ==
+                    "http://localhost:11434/api/tags",
+                "Trailing slash after OpenAI chat suffix should normalize cleanly");
+    TEST_ASSERT(OllamaClient::build_ping_url("http://localhost:11434/api/chat") ==
+                    "http://localhost:11434/api/tags",
+                "Ollama chat suffix should normalize to /api/tags");
+    TEST_ASSERT(OllamaClient::build_ping_url("http://localhost:11434/api/chat/") ==
+                    "http://localhost:11434/api/tags",
+                "Trailing slash after Ollama chat suffix should normalize cleanly");
+    TEST_ASSERT(OllamaClient::build_ping_url("http://localhost:11434/") ==
+                    "http://localhost:11434/api/tags",
+                "Base URL trailing slash should not produce double slash");
+
+    LLMConfig cfg;
+    cfg.timeout_seconds = 1;
+    TEST_ASSERT(OllamaClient::effective_timeout_seconds(cfg) == 1L,
+                "Positive short timeout must be preserved");
+    cfg.timeout_seconds = 0;
+    TEST_ASSERT(OllamaClient::effective_timeout_seconds(cfg) == 120L,
+                "Zero timeout must fall back to 120s");
+    cfg.timeout_seconds = -10;
+    TEST_ASSERT(OllamaClient::effective_timeout_seconds(cfg) == 120L,
+                "Negative timeout must fall back to 120s");
 }
 
 int main() {
@@ -117,5 +184,6 @@ int main() {
     suite.run("Ping Health Check", test_ping_health_check);
     suite.run("Base64 Encoding", test_base64_encoding);
     suite.run("Mock LLM Client", test_mock_llm_client);
+    suite.run("URL Normalization & Timeout Config", test_url_normalization_and_timeout_config);
     return suite.print_summary();
 }
