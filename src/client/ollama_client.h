@@ -16,6 +16,8 @@ public:
 
     // Base64 helper for image encoding
     static std::string encode_file_base64(const std::string& file_path);
+    static std::string build_ping_url(const std::string& base_url);
+    static long effective_timeout_seconds(const LLMConfig& config);
 };
 
 } // namespace agent

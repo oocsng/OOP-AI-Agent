@@ -1,8 +1,10 @@
 #include "ollama_client.h"
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
+#include <algorithm>
 #include <fstream>
 #include <sstream>
+#include <string_view>
 
 namespace agent {
 
@@ -105,8 +107,10 @@ LLMResponse OllamaClient::chat(const std::vector<Message>& history, const LLMCon
     curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
     curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, curl_write_callback);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &response_body);
-    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, static_cast<long>(std::max(120, config.timeout_seconds)));
-    curl_easy_setopt(curl.get(), CURLOPT_CONNECTTIMEOUT, 30L);
+    const long timeout_s = effective_timeout_seconds(config);
+    const long connect_timeout_s = std::min<long>(30L, timeout_s);
+    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, timeout_s);
+    curl_easy_setopt(curl.get(), CURLOPT_CONNECTTIMEOUT, connect_timeout_s);
 
     CURLcode res = curl_easy_perform(curl.get());
     long http_code = 0;
@@ -159,22 +163,37 @@ LLMResponse OllamaClient::chat(const std::vector<Message>& history, const LLMCon
     }
 }
 
-bool OllamaClient::ping(const std::string& base_url, int timeout_seconds) {
+long OllamaClient::effective_timeout_seconds(const LLMConfig& config) {
+    return config.timeout_seconds > 0 ? static_cast<long>(config.timeout_seconds) : 120L;
+}
+
+std::string OllamaClient::build_ping_url(const std::string& base_url) {
     std::string url = base_url;
     if (url.empty()) {
         const char* env_url = std::getenv("LLM_BASE_URL");
         url = (env_url && env_url[0] != '\0') ? env_url : "http://localhost:11434";
     }
 
-    if (url.ends_with("/api/chat")) {
-        url = url.substr(0, url.length() - 9);
-    } else if (url.ends_with("/v1/chat/completions")) {
-        url = url.substr(0, url.length() - 19);
-    }
     while (!url.empty() && url.back() == '/') {
         url.pop_back();
     }
-    std::string ping_endpoint = url + "/api/tags";
+
+    constexpr std::string_view kOllamaChat = "/api/chat";
+    constexpr std::string_view kOpenAiChat = "/v1/chat/completions";
+    if (url.ends_with(kOllamaChat)) {
+        url.resize(url.size() - kOllamaChat.size());
+    } else if (url.ends_with(kOpenAiChat)) {
+        url.resize(url.size() - kOpenAiChat.size());
+    }
+
+    while (!url.empty() && url.back() == '/') {
+        url.pop_back();
+    }
+    return url + "/api/tags";
+}
+
+bool OllamaClient::ping(const std::string& base_url, int timeout_seconds) {
+    std::string ping_endpoint = build_ping_url(base_url);
 
     CURL* raw_curl = curl_easy_init();
     if (!raw_curl) {
