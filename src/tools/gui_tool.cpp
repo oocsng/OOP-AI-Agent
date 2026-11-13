@@ -143,14 +143,23 @@ std::string GuiTool::filter_clipboard_content(const std::string& raw) {
 #ifdef _WIN32
 struct HdcScreenGuard {
     HDC hdc;
+    explicit HdcScreenGuard(HDC h) : hdc(h) {}
+    HdcScreenGuard(const HdcScreenGuard&) = delete;
+    HdcScreenGuard& operator=(const HdcScreenGuard&) = delete;
     ~HdcScreenGuard() { if (hdc) ReleaseDC(NULL, hdc); }
 };
 struct HdcMemGuard {
     HDC hdc;
+    explicit HdcMemGuard(HDC h) : hdc(h) {}
+    HdcMemGuard(const HdcMemGuard&) = delete;
+    HdcMemGuard& operator=(const HdcMemGuard&) = delete;
     ~HdcMemGuard() { if (hdc) DeleteDC(hdc); }
 };
 struct HbitmapGuard {
     HBITMAP hbm;
+    explicit HbitmapGuard(HBITMAP h) : hbm(h) {}
+    HbitmapGuard(const HbitmapGuard&) = delete;
+    HbitmapGuard& operator=(const HbitmapGuard&) = delete;
     ~HbitmapGuard() { if (hbm) DeleteObject(hbm); }
 };
 #endif
@@ -161,15 +170,15 @@ std::string GuiTool::capture_screenshot(const std::string& output_path) {
     int h = GetSystemMetrics(SM_CYSCREEN);
     HDC raw_hdcScreen = GetDC(NULL);
     if (!raw_hdcScreen) return "Error: Failed to get screen DC.";
-    HdcScreenGuard hdcScreenGuard{raw_hdcScreen};
+    HdcScreenGuard hdcScreenGuard(raw_hdcScreen);
 
     HDC raw_hdcMem = CreateCompatibleDC(raw_hdcScreen);
     if (!raw_hdcMem) return "Error: Failed to create memory DC.";
-    HdcMemGuard hdcMemGuard{raw_hdcMem};
+    HdcMemGuard hdcMemGuard(raw_hdcMem);
 
     HBITMAP raw_hbmScreen = CreateCompatibleBitmap(raw_hdcScreen, w, h);
     if (!raw_hbmScreen) return "Error: Failed to create screen bitmap.";
-    HbitmapGuard hbmScreenGuard{raw_hbmScreen};
+    HbitmapGuard hbmScreenGuard(raw_hbmScreen);
 
     HBITMAP hbmOld = (HBITMAP)SelectObject(raw_hdcMem, raw_hbmScreen);
     BitBlt(raw_hdcMem, 0, 0, w, h, raw_hdcScreen, 0, 0, SRCCOPY);
@@ -202,10 +211,15 @@ std::string GuiTool::capture_screenshot(const std::string& output_path) {
         std::filesystem::create_directories(fp.parent_path());
     }
     std::ofstream file(output_path, std::ios::binary);
-    if(file) {
-        file.write((const char*)&bmfHeader, sizeof(BITMAPFILEHEADER));
-        file.write((const char*)&bi, sizeof(BITMAPINFOHEADER));
-        file.write((const char*)pixels.data(), dwBmpSize);
+    if (!file.is_open()) {
+        return "Error: Failed to open screenshot file for writing: " + output_path;
+    }
+    file.write(reinterpret_cast<const char*>(&bmfHeader), sizeof(BITMAPFILEHEADER));
+    file.write(reinterpret_cast<const char*>(&bi), sizeof(BITMAPINFOHEADER));
+    file.write(reinterpret_cast<const char*>(pixels.data()), dwBmpSize);
+    file.flush();
+    if (!file.good()) {
+        return "Error: Failed to write screenshot data to: " + output_path;
     }
     
     return encode_base64(pixels);
@@ -278,7 +292,10 @@ std::string GuiTool::execute(const nlohmann::json& args) {
 #ifdef _WIN32
     if (action == "screenshot") {
         std::string out_path = effective_args.value("path", "outputs/screen captures/screenshot.bmp");
-        capture_screenshot(out_path);
+        std::string cap_res = capture_screenshot(out_path);
+        if (cap_res.rfind("Error:", 0) == 0) {
+            return cap_res;
+        }
         return "Screenshot captured and saved to '" + out_path + "'.";
     } else if (action == "click") {
         int x = effective_args.value("x", 100);
@@ -318,9 +335,14 @@ std::string GuiTool::execute(const nlohmann::json& args) {
 
     if (action == "type") {
         std::string text = effective_args.value("text", "");
-#ifdef _WIN32
-        // Native Win32 SendInput with KEYEVENTF_UNICODE — no PowerShell, no permission issues
-        std::wstring wtext(text.begin(), text.end());
+        std::wstring wtext;
+        if (!text.empty()) {
+            int wlen = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+            if (wlen > 0) {
+                wtext.resize(static_cast<std::size_t>(wlen));
+                MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), wtext.data(), wlen);
+            }
+        }
         std::vector<INPUT> inputs;
         inputs.reserve(wtext.size() * 2);
         for (wchar_t wc : wtext) {
@@ -339,10 +361,6 @@ std::string GuiTool::execute(const nlohmann::json& args) {
             SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
         }
         return "Typed: " + text;
-#else
-        (void)text;
-        return "Error: GUI type action supported on Windows only.";
-#endif
     } else if (action == "key") {
         std::string k = effective_args.value("key", "enter");
         if (k == "enter" || k == "Return") {

@@ -96,6 +96,13 @@ void test_calculator_tool() {
     CalculatorTool calc;
     std::string calc_res = calc.execute({{"expression", "(3 + 4) * 2^3"}});
     TEST_ASSERT(calc_res.find("56") != std::string::npos, "Calculation result should be 56");
+
+    std::string tower_res = calc.execute({{"expression", "2^3^2"}});
+    TEST_ASSERT(tower_res == "512", "2^3^2 should be right-associative (2^(3^2) = 512)");
+
+    std::string high_bit_res = calc.execute({{"expression", "\xC2\xA0 2 + 2"}});
+    TEST_ASSERT(high_bit_res.find("Error evaluating expression") != std::string::npos,
+                "High-bit non-ASCII byte should return clean error without signed-char UB");
 }
 
 void test_file_tool() {

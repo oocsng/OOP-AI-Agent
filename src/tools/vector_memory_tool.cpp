@@ -12,12 +12,16 @@ static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::stri
 }
 
 VectorMemoryTool::VectorMemoryTool() { init_db(); }
-VectorMemoryTool::~VectorMemoryTool() { if (db_) sqlite3_close(db_); }
+VectorMemoryTool::~VectorMemoryTool() = default;
 
 void VectorMemoryTool::init_db() {
-    if (sqlite3_open("vector_memory.db", &db_) == SQLITE_OK) {
+    sqlite3* raw_db = nullptr;
+    if (sqlite3_open("vector_memory.db", &raw_db) == SQLITE_OK && raw_db != nullptr) {
+        db_.reset(raw_db);
         const char* sql = "CREATE TABLE IF NOT EXISTS embeddings (id INTEGER PRIMARY KEY, text TEXT, vector_json TEXT);";
-        sqlite3_exec(db_, sql, nullptr, nullptr, nullptr);
+        sqlite3_exec(db_.get(), sql, nullptr, nullptr, nullptr);
+    } else if (raw_db != nullptr) {
+        sqlite3_close(raw_db);
     }
 }
 
@@ -102,6 +106,7 @@ double VectorMemoryTool::cosine_similarity(const std::vector<float>& a, const st
 
 std::string VectorMemoryTool::execute(const nlohmann::json& args) {
     if (!args.contains("action") || !args.contains("text")) return "Error: missing arguments";
+    if (!db_) return "Error: Database not initialized.";
     std::string action = args["action"];
     std::string text = args["text"];
 
@@ -112,12 +117,14 @@ std::string VectorMemoryTool::execute(const nlohmann::json& args) {
         nlohmann::json e_json = emb;
         std::string sql = "INSERT INTO embeddings (text, vector_json) VALUES (?, ?);";
         sqlite3_stmt* raw_stmt = nullptr;
-        if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &raw_stmt, nullptr) == SQLITE_OK) {
+        if (sqlite3_prepare_v2(db_.get(), sql.c_str(), -1, &raw_stmt, nullptr) == SQLITE_OK) {
             std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> stmt(raw_stmt, sqlite3_finalize);
             sqlite3_bind_text(stmt.get(), 1, text.c_str(), -1, SQLITE_TRANSIENT);
             std::string ej_str = e_json.dump();
             sqlite3_bind_text(stmt.get(), 2, ej_str.c_str(), -1, SQLITE_TRANSIENT);
-            sqlite3_step(stmt.get());
+            if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
+                return "Error: Database insert failed.";
+            }
             return "Saved semantic memory successfully.";
         }
         return "Database error.";
@@ -130,7 +137,7 @@ std::string VectorMemoryTool::execute(const nlohmann::json& args) {
         std::string best_match = "";
         double best_score = -1.0;
         
-        if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &raw_stmt, nullptr) == SQLITE_OK) {
+        if (sqlite3_prepare_v2(db_.get(), sql.c_str(), -1, &raw_stmt, nullptr) == SQLITE_OK) {
             std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> stmt(raw_stmt, sqlite3_finalize);
             while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
                 const char* raw_col0 = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0));

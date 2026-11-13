@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cmath>
 #include <filesystem>
+#include <type_traits>
 
 using namespace agent;
 
@@ -31,17 +32,23 @@ void test_cosine_similarity_math() {
 }
 
 void test_vector_memory_tool_execution() {
-    std::string test_db = "vector_memory.db";
+    static_assert(!std::is_copy_constructible_v<VectorMemoryTool>,
+                  "VectorMemoryTool must not be copy-constructible");
+    static_assert(!std::is_copy_assignable_v<VectorMemoryTool>,
+                  "VectorMemoryTool must not be copy-assignable");
+    static_assert(std::is_move_constructible_v<VectorMemoryTool>,
+                  "VectorMemoryTool must be move-constructible");
 
     VectorMemoryTool tool;
-    assert(tool.name() == "vector_memory");
+    VectorMemoryTool moved_tool(std::move(tool));
+    assert(moved_tool.name() == "vector_memory");
 
     // Test argument error handling
-    std::string err = tool.execute({});
+    std::string err = moved_tool.execute({});
     assert(err.find("Error") != std::string::npos);
 
     // Search in empty DB (offline / no embedding server)
-    std::string search_res = tool.execute({{"action", "search"}, {"text", "hello"}});
+    std::string search_res = moved_tool.execute({{"action", "search"}, {"text", "hello"}});
     assert(search_res.find("Error") != std::string::npos || search_res.find("No relevant memory") != std::string::npos);
 }
 

@@ -31,6 +31,15 @@ void test_gui_action_parsing_and_execution() {
     nlohmann::json type_args = {{"action", "type"}, {"text", "Hello GUI"}};
     std::string type_res = gui.execute(type_args);
     assert(type_res.find("Typed") != std::string::npos || type_res.find("executed") != std::string::npos);
+
+#ifdef _WIN32
+    nlohmann::json bad_shot = {
+        {"action", "screenshot"},
+        {"path", "outputs/screen captures/::invalid_filename::.bmp"}
+    };
+    std::string bad_shot_res = gui.execute(bad_shot);
+    assert(bad_shot_res.find("Error:") != std::string::npos);
+#endif
 }
 
 void test_gui_tool_registration() {

@@ -19,9 +19,9 @@ EvalResult FunctionalEvaluator::evaluate(const Trajectory& trajectory, const Tas
     std::array<char, 256> buffer;
 
 #if defined(_WIN32)
-    FILE* pipe = _popen(command.c_str(), "r");
+    std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(command.c_str(), "r"), _pclose);
 #else
-    FILE* pipe = popen(command.c_str(), "r");
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
 #endif
 
     if (!pipe) {
@@ -31,14 +31,14 @@ EvalResult FunctionalEvaluator::evaluate(const Trajectory& trajectory, const Tas
         return result;
     }
 
-    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
+    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
         output += buffer.data();
     }
 
 #if defined(_WIN32)
-    int exit_code = _pclose(pipe);
+    int exit_code = _pclose(pipe.release());
 #else
-    int exit_code = pclose(pipe);
+    int exit_code = pclose(pipe.release());
 #endif
 
     if (exit_code == 0) {

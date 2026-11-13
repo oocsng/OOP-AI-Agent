@@ -12,9 +12,10 @@ private:
     std::string expr_;
     size_t pos_{0};
 
-    char peek() const {
-        while (pos_ < expr_.length() && std::isspace(expr_[pos_])) {
-            const_cast<ExprParser*>(this)->pos_++;
+    char peek() {
+        while (pos_ < expr_.length() &&
+               std::isspace(static_cast<unsigned char>(expr_[pos_]))) {
+            pos_++;
         }
         if (pos_ >= expr_.length()) return '\0';
         return expr_[pos_];
@@ -29,7 +30,8 @@ private:
     double parse_number() {
         size_t start = pos_;
         bool has_dot = false;
-        while (pos_ < expr_.length() && (std::isdigit(expr_[pos_]) || expr_[pos_] == '.')) {
+        while (pos_ < expr_.length() &&
+               (std::isdigit(static_cast<unsigned char>(expr_[pos_])) || expr_[pos_] == '.')) {
             if (expr_[pos_] == '.') {
                 if (has_dot) break;
                 has_dot = true;
@@ -65,9 +67,9 @@ private:
 
     double parse_power() {
         double val = parse_factor();
-        while (peek() == '^') {
+        if (peek() == '^') {
             get();
-            double right = parse_factor();
+            double right = parse_power();
             val = std::pow(val, right);
         }
         return val;
