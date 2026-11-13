@@ -8,7 +8,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Auto-detect MSYS2 UCRT64 dependencies on Windows
 if(WIN32)
-    if(EXISTS "C:/msys64/ucrt64")
+    if(DEFINED ENV{MINGW_PREFIX} AND EXISTS "$ENV{MINGW_PREFIX}")
+        list(APPEND CMAKE_PREFIX_PATH "$ENV{MINGW_PREFIX}")
+        if(NOT DEFINED OPENSSL_ROOT_DIR)
+            set(OPENSSL_ROOT_DIR "$ENV{MINGW_PREFIX}")
+        endif()
+    elseif(EXISTS "C:/msys64/ucrt64")
         list(APPEND CMAKE_PREFIX_PATH "C:/msys64/ucrt64")
         if(NOT DEFINED OPENSSL_ROOT_DIR)
             set(OPENSSL_ROOT_DIR "C:/msys64/ucrt64")
@@ -40,7 +45,7 @@ target_include_directories(oop_agent_core PUBLIC
 target_link_libraries(oop_agent_core PUBLIC
     CURL::libcurl
     nlohmann_json::nlohmann_json
-    SQLite::SQLite3
+    SQLite3::SQLite3
     gdi32
 )
 
